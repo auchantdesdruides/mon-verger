@@ -1457,6 +1457,17 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
       navigator.serviceWorker.register("sw.js").catch(err => {
         console.warn("Service Worker non enregistré :", err);
       });
+
+      // Si une nouvelle version a été installée, on le signale et on recharge
+      navigator.serviceWorker.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "SW_UPDATED") {
+          const banner = document.createElement("div");
+          banner.textContent = "🌳 Mon Verger a été mis à jour — Appuyez pour recharger";
+          banner.style.cssText = "position:fixed;bottom:0;left:0;right:0;background:#4a7c3f;color:#fff;text-align:center;padding:12px;font-family:Georgia,serif;font-size:14px;z-index:99999;cursor:pointer;box-shadow:0 -2px 12px rgba(0,0,0,.2);";
+          banner.onclick = () => window.location.reload();
+          document.body.appendChild(banner);
+        }
+      });
     });
   }
 </script>

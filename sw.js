@@ -1,7 +1,8 @@
 // Mon Verger — Service Worker
 // Permet le fonctionnement hors-ligne complet (l'appli + ses données locales)
+// + Vérification automatique des mises à jour à chaque ouverture
 
-const CACHE_NAME = "mon-verger-v16";
+const CACHE_NAME = "mon-verger-v17"; // ⚠️ Incrémenter ce numéro à chaque nouvelle version pour forcer la mise à jour
 const ASSETS = [
   "./",
   "./index.html",
@@ -15,23 +16,29 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
+  self.skipWaiting(); // active immédiatement la nouvelle version sans attendre
 });
 
-// Activation : nettoie les anciens caches
+// Activation : nettoie les anciens caches ET prévient l'appli qu'une MAJ a eu lieu
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
-      )
-    )
+    (async () => {
+      const keys = await caches.keys();
+      const oldCaches = keys.filter((k) => k !== CACHE_NAME);
+      await Promise.all(oldCaches.map((k) => caches.delete(k)));
+      await self.clients.claim();
+
+      // Si une ancienne version existait, on informe les pages ouvertes
+      if (oldCaches.length > 0) {
+        const clients = await self.clients.matchAll({ type: "window" });
+        clients.forEach((client) => client.postMessage({ type: "SW_UPDATED" }));
+      }
+    })()
   );
-  self.clients.claim();
 });
 
-// Stratégie : cache d'abord, puis réseau (pour mises à jour silencieuses)
-// Les appels API externes (météo, QR, Claude) passent toujours par le réseau
+// Stratégie : réseau d'abord pour l'appli (toujours la dernière version si en ligne),
+// cache en secours si hors-ligne
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
@@ -57,19 +64,25 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Pour l'appli elle-même : cache d'abord, réseau en secours
+  // Pour l'appli elle-même : réseau d'abord (pour toujours avoir la dernière version),
+  // cache uniquement si le réseau échoue (mode hors-ligne réel)
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const networkFetch = fetch(event.request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || networkFetch;
-    })
+    fetch(event.request)
+      .then((response) => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
+
+// Permet à la page de forcer l'activation immédiate d'une nouvelle version
+self.addEventListener("message", (event) => {
+  if (event.data === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
