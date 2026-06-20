@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>Mon Verger</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#4a7c3f"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Mon Verger"/>
+<link rel="apple-touch-icon" href="icon-apple.png"/>
+<link rel="icon" type="image/png" href="icon-192.png"/>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=Satisfy&display=swap" rel="stylesheet"/>
+<style>*{box-sizing:border-box;margin:0;padding:0;}body{background:#2d3a2d;display:flex;align-items:flex-start;justify-content:center;min-height:100vh;padding:12px;font-family:Georgia,serif;}#root{width:100%;max-width:1200px;}@media(orientation:landscape)and(max-width:960px){body{padding:8px;}#root{max-width:100%;}}</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+/*
+ * ╔══════════════════════════════════════════════════════════════╗
+ * ║                      MON VERGER                             ║
+ * ║            Application de gestion de verger                 ║
+ * ╠══════════════════════════════════════════════════════════════╣
+ * ║  © 2025 Au Chant des Druides — Tous droits réservés          ║
+ * ║                                                              ║
+ * ║  Licence : Creative Commons BY-NC 4.0                       ║
+ * ║  → Usage personnel et partage autorisés                     ║
+ * ║  → Modification autorisée avec mention de l'auteur original ║
+ * ║  → Utilisation commerciale et revente INTERDITES            ║
+ * ║                                                              ║
+ * ║  https://creativecommons.org/licenses/by-nc/4.0/deed.fr     ║
+ * ╚══════════════════════════════════════════════════════════════╝
+ */
+const {useState,useEffect,useRef}=React;
+
+const storage={
+  get:key=>{try{const v=localStorage.getItem(key);return v?{value:v}:null;}catch{return null;}},
+  set:(key,val)=>{try{localStorage.setItem(key,val);return true;}catch{return null;}},
+};
+
+// ════════════════════════════════════════════════════════════
+// CLÉS DE STOCKAGE localStorage
+//   SK    = liste des arbres
+//   VK    = variétés personnalisées
+//   FK    = fiches descriptives manuelles
+//   JK    = journal de bord par arbre
+//   RK    = historique des récoltes
+//   MK    = marqueurs sur la carte
+//   IK    = image de fond de la carte
+//   COULK = couleurs personnalisées par variété
+//   ZK    = zones/secteurs colorés sur la carte  ← NOUVEAU
+// ════════════════════════════════════════════════════════════
+const SK="arbres-pierre",VK="arbres-varietes-pierre",FK="arbres-fiches",JK="arbres-journal",RK="arbres-recoltes",MK="arbres-marqueurs",IK="arbres-carte-img",COULK="arbres-couleurs-varietes",ZK="arbres-zones-carte";
+const DEFAULT_V=["Amandier","Amélanchier","Autre","Cerisier","Châtaignier","Chêne","Figuier","Mirabellier","Mûrier","Néflier","Noisetier","Noyer","Osier","Pacanier","Pêcher","Poivrier","Pommier","Poirier","Prunier"];
+const VI={"Pommier":"🍎","Poirier":"🍐","Prunier":"🟣","Cerisier":"🍒","Chêne":"🌳","Châtaignier":"🌰","Noisetier":"🌿","Noyer":"🥜","Figuier":"🍈","Osier":"🌾","Pêcher":"🍑","Amandier":"🤍","Mirabellier":"🟡","Pacanier":"🥧","Néflier":"🧡","Mûrier":"🫒","Poivrier":"🌶️","Amélanchier":"🫐","Autre":"🌱"};
+const gvi=v=>VI[v]||"🌱";
+const PAL_DEFAULT=["#4a7c3f","#2d5a1b","#6b8f47","#3d6b2e","#8aad5a","#5a7a35","#2e5e1e","#7a9e55","#4e6e30","#639922","#854F0B","#533AB7","#D4537E","#185FA5","#BA7517","#993556","#1D9E75","#D85A30","#5F5E5A"];
+const PAL_DEFAULT_D=["#7bc67a","#5aaa59","#9dc97c","#6db35e","#aacc88","#8ab865","#5faa5e","#9dc98a","#7ab360","#8bc455","#c9a84c","#9dc97c","#e07070","#5aaddd","#c9a84c","#dd7aaa","#5fcc9f","#e09070","#9a9a9a"];
+const SAN={"Bon":{c:"#4a7c3f",cd:"#7bc67a",i:"🟢"},"À surveiller":{c:"#8a6d1e",cd:"#c9a84c",i:"🟡"},"Malade":{c:"#b84040",cd:"#e07070",i:"🔴"}};
+const ZONE_COLORS=["#4a7c3f","#8a6d1e","#b84040","#3a6a9a","#9a5fb0","#c9904a","#5fa0a0"];
+const ML=["","Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const ORIGINES=["Pépinière","Bouture","Greffe","Semis","Cadeau","Troc","Sauvage","Autre"];
+const RAP=[
+  {m:[1,2],e:"✂️",t:"Taille de formation",d:"Tailler les fruitiers pendant la dormance.",v:["Pommier","Poirier","Prunier","Cerisier","Noisetier"]},
+  {m:[2,3],e:"🌱",t:"Débourrement",d:"Observer les bourgeons. Protéger des gelées.",v:null},
+  {m:[3,4],e:"🌸",t:"Floraison",d:"Pollinisation. Éviter insecticides.",v:["Pommier","Poirier","Cerisier","Prunier","Pêcher","Amandier"]},
+  {m:[4,5],e:"🐛",t:"Ravageurs",d:"Inspecter feuilles. Pièges à phéromones.",v:["Pommier","Poirier"]},
+  {m:[5,6],e:"💧",t:"Arrosage & paillage",d:"Paillage au pied. Arroser les jeunes plants.",v:null},
+  {m:[6,7],e:"✂️",t:"Taille en vert",d:"Pincer gourmands. Éclaircir fruits.",v:["Pommier","Poirier","Prunier"]},
+  {m:[7,8,9],e:"🍎",t:"Récolte",d:"Surveiller maturité. Récolter progressivement.",v:["Pommier","Poirier","Prunier","Cerisier","Pêcher","Mirabellier","Noisetier","Noyer","Châtaignier","Figuier","Mûrier"]},
+  {m:[9,10],e:"🍂",t:"Récolte tardive",d:"Ramasser noix et châtaignes.",v:["Noyer","Châtaignier","Noisetier","Chêne","Pacanier","Néflier"]},
+  {m:[10,11],e:"🌿",t:"Plantation",d:"Meilleure période pour planter à racines nues.",v:null},
+  {m:[11,12],e:"🛡️",t:"Protection hivernale",d:"Protéger troncs contre gel et rongeurs.",v:null},
+];
+const getR=(m,a)=>RAP.filter(r=>r.m.includes(m)&&(!r.v||a.some(x=>r.v.includes(x.variete))));
+const CL={bg:"#faf6ef",card:"#fff8ee",border:"#d4c9a8",acc:"#4a7c3f",acc2:"#6b8f47",light:"#e8f0d8",mut:"#7a7060",txt:"#2d2a20",dan:"#b84040",tbg:"#4a7c3f",tsub:"#b8daa0"};
+const CD={bg:"#1a1f16",card:"#242b1e",border:"#3a4530",acc:"#7bc67a",acc2:"#9dc97c",light:"#2a3422",mut:"#8a9c7a",txt:"#e8f0d8",dan:"#e07070",tbg:"#2d4a2a",tsub:"#8ab865"};
+const THEMES={
+  "Forêt":{bg:"#faf6ef",card:"#fff8ee",border:"#d4c9a8",acc:"#4a7c3f",acc2:"#6b8f47",light:"#e8f0d8",mut:"#7a7060",txt:"#2d2a20",tbg:"#4a7c3f",tsub:"#b8daa0"},
+  "Nuit":{bg:"#1a1f16",card:"#242b1e",border:"#3a4530",acc:"#7bc67a",acc2:"#9dc97c",light:"#2a3422",mut:"#8a9c7a",txt:"#e8f0d8",tbg:"#2d4a2a",tsub:"#8ab865"},
+  "Lavande":{bg:"#f5f0f8",card:"#fffbff",border:"#c8b8d8",acc:"#7a5a9a",acc2:"#9678b8",light:"#e8dcf0",mut:"#7a708a",txt:"#2a2030",tbg:"#7a5a9a",tsub:"#c8b0e0"},
+  "Druide":{bg:"#f3f0e6",card:"#fbf9f0",border:"#bdb088",acc:"#5a6e3a",acc2:"#7a8f55",light:"#e2e2c8",mut:"#736c52",txt:"#28281c",tbg:"#3d4a28",tsub:"#a8c080"},
+  "Granit":{bg:"#eef0f0",card:"#f8fafa",border:"#a8b4b8",acc:"#3a6478",acc2:"#5a8898",light:"#dce6e6",mut:"#5e6e72",txt:"#1c2628",tbg:"#2a4a58",tsub:"#90b8c4"},
+  "Automne":{bg:"#fbf3e8",card:"#fffaf2",border:"#dcb878",acc:"#c0682a",acc2:"#d88a48",light:"#f0dcb8",mut:"#8a6e4a",txt:"#2e2010",tbg:"#a8521e",tsub:"#e8b878"},
+  "Ardoise":{bg:"#1e2228",card:"#282d35",border:"#3e454e",acc:"#5a98c0",acc2:"#78b0d4",light:"#2c333c",mut:"#8290a0",txt:"#e4eaf0",tbg:"#222830",tsub:"#7aaed0"},
+};
+
+function b64(file,max){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas");let w=img.width,h=img.height,m=max||800;if(w>m){h=h*m/w;w=m;}if(h>m){w=w*m/h;h=m;}c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);res(c.toDataURL("image/jpeg",.82));};img.src=r.result;};r.onerror=rej;r.readAsDataURL(file);});}
+function parseSec(t){const l=t.split("\n").filter(x=>x.trim());const s=[];let c=null;for(const x of l){if(x.startsWith("##")){if(c)s.push(c);c={ti:x.replace(/^#+\s*/,"").trim(),co:""};}else if(c)c.co+=(c.co?" ":"")+x.trim();else s.push({ti:"Info",co:x.trim()});}if(c)s.push(c);return s;}
+const Badge=({text,color})=><span style={{display:"inline-block",padding:"2px 9px",borderRadius:20,fontSize:11,fontFamily:"sans-serif",fontWeight:500,background:color+"22",color,border:`1px solid ${color}55`}}>{text}</span>;
+function AgeBar({annee,color}){const age=new Date().getFullYear()-parseInt(annee);const pct=Math.min((age/50)*100,100);return <div><div style={{display:"flex",justifyContent:"space-between",fontSize:10,fontFamily:"sans-serif",color:"#888",marginBottom:2}}><span>Planté en {annee}</span><span>{age} an{age>1?"s":""}</span></div><div style={{background:"#e8f0d8",borderRadius:4,height:5,overflow:"hidden"}}><div style={{width:pct+"%",height:"100%",background:color,borderRadius:4}}/></div></div>;}
+function QR({text,size}){const sz=size||70;const url="https://api.qrserver.com/v1/create-qr-code/?size="+sz+"x"+sz+"&data="+encodeURIComponent(text);return <div style={{width:sz,height:sz,background:"#fff",border:"1px solid #ccc",borderRadius:4,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center"}}><img src={url} width={sz} height={sz} alt="QR" style={{display:"block"}}/></div>;}
+
+function ThemeModal({theme,onSave,onClose,C}){
+  const [sel,setSel]=useState(theme);
+  const btn=(ex)=>({fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",...ex});
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:12}}>
+    <div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:18,width:340,maxWidth:"100%",boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
+      <p style={{fontSize:16,fontWeight:700,margin:"0 0 4px",color:C.txt}}>🎨 Thème de l'interface</p>
+      <p style={{fontSize:12,color:C.mut,fontFamily:"sans-serif",margin:"0 0 16px"}}>Choisis l'apparence de l'application.</p>
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:18}}>
+        {Object.entries(THEMES).map(([name,th])=>(
+          <button key={name} onClick={()=>setSel(name)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:10,border:`2px solid ${sel===name?th.acc:C.border}`,background:sel===name?th.light:C.card,cursor:"pointer",textAlign:"left"}}>
+            <div style={{display:"flex",gap:4,flexShrink:0}}>
+              <div style={{width:18,height:18,borderRadius:"50%",background:th.tbg}}/>
+              <div style={{width:18,height:18,borderRadius:"50%",background:th.acc}}/>
+              <div style={{width:18,height:18,borderRadius:"50%",background:th.light,border:"1px solid #ccc"}}/>
+            </div>
+            <span style={{fontSize:14,fontWeight:sel===name?700:400,color:C.txt}}>{name}</span>
+            {sel===name&&<span style={{marginLeft:"auto",fontSize:16}}>✓</span>}
+          </button>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <button onClick={onClose} style={btn()}>Annuler</button>
+        <button onClick={()=>onSave(sel)} style={btn({background:C.acc,color:"#fff",borderColor:C.acc})}>✓ Appliquer</button>
+      </div>
+    </div>
+  </div>;
+}
+
+// ── Modal couleurs variétés ──
+function CouleurModal({varietes,couleurs,vIndex,onSave,onClose,C}){
+  const [cols,setCols]=useState({...couleurs});
+  const getCol=v=>cols[v]||PAL_DEFAULT[Math.max(vIndex(v),0)%PAL_DEFAULT.length];
+  const btn=(ex)=>({fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",...ex});
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:12}}>
+    <div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:18,width:360,maxWidth:"100%",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,.4)"}}>
+      <p style={{fontSize:16,fontWeight:700,margin:"0 0 4px",color:C.txt}}>🎨 Couleurs des variétés</p>
+      <p style={{fontSize:12,color:C.mut,fontFamily:"sans-serif",margin:"0 0 16px"}}>Clique sur la couleur pour la modifier.</p>
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:18}}>
+        {varietes.map(v=>{
+          const cur=getCol(v);
+          return <div key={v} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",background:C.light,borderRadius:8,border:`1px solid ${C.border}`}}>
+            <span style={{fontSize:18,minWidth:24}}>{gvi(v)}</span>
+            <span style={{flex:1,fontSize:13,color:C.txt,fontWeight:500}}>{v}</span>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:24,height:24,borderRadius:"50%",background:cur,border:"2px solid #fff",boxShadow:"0 0 0 1px rgba(0,0,0,.2)"}}/>
+              <input type="color" value={cur} onChange={e=>setCols(c=>({...c,[v]:e.target.value}))}
+                style={{width:44,height:32,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer",padding:2,background:C.card}}/>
+              {cols[v]&&<button onClick={()=>setCols(c=>{const n={...c};delete n[v];return n;})}
+                style={{...btn(),padding:"2px 7px",fontSize:12,color:C.mut}} title="Réinitialiser">↺</button>}
+            </div>
+          </div>;
+        })}
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <button onClick={onClose} style={btn()}>Annuler</button>
+        <button onClick={()=>onSave(cols)} style={btn({background:C.acc,color:"#fff",borderColor:C.acc})}>✓ Enregistrer</button>
+      </div>
+    </div>
+  </div>;
+}
+
+function Galerie({photos,onAdd,onDel,C}){
+  const [lb,setLb]=useState(null);
+  const ph=photos||[];
+  const fileRef=useRef();
+  const MAX=10;
+  const canAdd=ph.length<MAX;
+  const lbSwipeX=useRef(null);
+  const onLbTS=e=>{lbSwipeX.current=e.touches[0].clientX;};
+  const onLbTE=e=>{if(lbSwipeX.current===null)return;const dx=e.changedTouches[0].clientX-lbSwipeX.current;if(Math.abs(dx)>50)setLb(i=>(i+(dx<0?1:-1)+ph.length)%ph.length);lbSwipeX.current=null;};
+  return <div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(80px,1fr))",gap:8,marginBottom:10}}>
+      {ph.map((p,i)=><div key={i} style={{position:"relative",aspectRatio:"1",borderRadius:9,overflow:"hidden",border:`1.5px solid ${C.border}`,cursor:"pointer"}} onClick={()=>setLb(i)}>
+        <img src={p} alt={`Photo ${i+1}`} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+        <button onClick={e=>{e.stopPropagation();onDel(i);}} style={{position:"absolute",top:3,right:3,background:"rgba(0,0,0,.55)",color:"#fff",border:"none",borderRadius:"50%",width:20,height:20,fontSize:13,cursor:"pointer",lineHeight:"20px",textAlign:"center",padding:0}}>×</button>
+        <div style={{position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,rgba(0,0,0,.5))",padding:"4px 5px",fontSize:9,color:"rgba(255,255,255,.8)",fontFamily:"sans-serif",textAlign:"right"}}>📷 {i+1}/{ph.length}</div>
+      </div>)}
+      {canAdd&&<div onClick={()=>fileRef.current.click()} style={{aspectRatio:"1",borderRadius:9,border:`2px dashed ${C.acc}55`,background:C.light,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",gap:4,minHeight:80}}>
+        <span style={{fontSize:22,color:C.acc}}>+</span>
+        <span style={{fontSize:9,color:C.acc,fontFamily:"sans-serif"}}>Photo</span>
+      </div>}
+    </div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+      <span style={{fontSize:10,color:C.mut,fontFamily:"sans-serif"}}>{ph.length}/{MAX} photos</span>
+      {!canAdd&&<span style={{fontSize:10,color:C.dan,fontFamily:"sans-serif"}}>Maximum atteint</span>}
+    </div>
+    <input ref={fileRef} type="file" accept="image/*" multiple onChange={async e=>{
+      const files=Array.from(e.target.files).slice(0,MAX-ph.length);
+      for(const f of files){try{onAdd(await b64(f,1000));}catch(err){console.error(err);}}
+      e.target.value="";
+    }} style={{display:"none"}}/>
+    {lb!==null&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,flexDirection:"column",gap:10}}
+      onClick={()=>setLb(null)} onTouchStart={onLbTS} onTouchEnd={onLbTE}>
+      <img src={ph[lb]} style={{maxWidth:"92vw",maxHeight:"78vh",borderRadius:10,objectFit:"contain"}} onClick={e=>e.stopPropagation()} alt=""/>
+      <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
+        {ph.map((_,i)=><div key={i} onClick={()=>setLb(i)} style={{width:i===lb?28:8,height:8,borderRadius:4,background:i===lb?"#fff":"rgba(255,255,255,.35)",cursor:"pointer",transition:"width .2s"}}/>)}
+      </div>
+      <button onClick={()=>setLb(null)} style={{position:"absolute",top:16,right:20,background:"rgba(255,255,255,.2)",border:"none",color:"#fff",fontSize:22,cursor:"pointer",borderRadius:"50%",width:36,height:36}}>×</button>
+      {ph.length>1&&<>
+        <button onClick={e=>{e.stopPropagation();setLb((lb-1+ph.length)%ph.length);}} style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",background:"rgba(255,255,255,.2)",border:"none",color:"#fff",fontSize:26,cursor:"pointer",borderRadius:"50%",width:40,height:40}}>‹</button>
+        <button onClick={e=>{e.stopPropagation();setLb((lb+1)%ph.length);}} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"rgba(255,255,255,.2)",border:"none",color:"#fff",fontSize:26,cursor:"pointer",borderRadius:"50%",width:40,height:40}}>›</button>
+      </>}
+    </div>}
+  </div>;
+}
+
+function Graf({list,color,C}){
+  if(!list||!list.length)return <p style={{color:C.mut,fontStyle:"italic",fontSize:13,textAlign:"center",padding:"10px 0"}}>Aucune récolte.</p>;
+  const s=[...list].sort((a,b)=>a.annee-b.annee);const pq=q=>{const n=parseFloat((q+"").replace(",","."));return isNaN(n)?0:n;};
+  const vals=s.map(r=>pq(r.quantite));const max=Math.max(...vals,1);const total=vals.reduce((a,b)=>a+b,0);const record=s[vals.indexOf(Math.max(...vals))];
+  return <div><div style={{display:"flex",gap:12,marginBottom:10}}><div style={{background:color+"11",border:`1px solid ${color}44`,borderRadius:8,padding:"6px 12px",flex:1,textAlign:"center"}}><div style={{fontSize:10,fontFamily:"sans-serif",color,textTransform:"uppercase",letterSpacing:.5}}>Total</div><div style={{fontSize:16,fontWeight:700,color,fontFamily:"sans-serif"}}>{total.toFixed(1)}</div></div>{record&&<div style={{background:color+"11",border:`1px solid ${color}44`,borderRadius:8,padding:"6px 12px",flex:1,textAlign:"center"}}><div style={{fontSize:10,fontFamily:"sans-serif",color,textTransform:"uppercase",letterSpacing:.5}}>Record {record.annee}</div><div style={{fontSize:16,fontWeight:700,color,fontFamily:"sans-serif"}}>{record.quantite} 🏆</div></div>}</div>
+  <div style={{display:"flex",alignItems:"flex-end",gap:6,height:80,paddingBottom:4}}>{s.map((r,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><div style={{fontSize:10,fontFamily:"sans-serif",color:C.mut}}>{r.quantite}</div><div style={{width:"100%",height:Math.max((vals[i]/max)*68,4),background:vals[i]===Math.max(...vals)?color+"dd":color+"88",borderRadius:"4px 4px 0 0"}}/><div style={{fontSize:10,fontFamily:"sans-serif",color:C.mut,whiteSpace:"nowrap"}}>{r.annee}</div></div>)}</div></div>;
+}
+
+function Meteo({C,onGel}){
+  const [m,setM]=useState(null);const [ld,setLd]=useState(false);const [er,setEr]=useState(null);
+  useEffect(()=>{setLd(true);if(!navigator.geolocation){setEr("Géoloc. non disponible");setLd(false);return;}
+    navigator.geolocation.getCurrentPosition(async pos=>{try{
+      const{latitude:la,longitude:lo}=pos.coords;
+      const r=await fetch("https://api.open-meteo.com/v1/forecast?latitude="+la+"&longitude="+lo+"&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=3");
+      const d=await r.json();
+      const wc=d.current.weather_code;
+      const ic=wc<=1?"☀️":wc<=3?"⛅":wc<=48?"🌫️":wc<=67?"🌧️":wc<=77?"🌨️":wc<=82?"🌦️":"⛈️";
+      const gelDays=d.daily.temperature_2m_min.map((t,i)=>({j:i,t,date:new Date(d.daily.time[i]).toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"})})).filter(x=>x.t<=1);
+      setM({temp:Math.round(d.current.temperature_2m),ic,wind:Math.round(d.current.wind_speed_10m),hum:d.current.relative_humidity_2m,min:Math.round(d.daily.temperature_2m_min[0]),max:Math.round(d.daily.temperature_2m_max[0]),gelDays});
+      if(gelDays.length>0&&onGel)onGel(gelDays);
+    }catch{setEr("Météo indisponible");}setLd(false);},()=>{setEr("Localisation refusée");setLd(false);});
+  },[]);
+  if(ld)return <div style={{fontSize:12,color:C.mut,fontFamily:"sans-serif",padding:"6px 0"}}>🌤️ Chargement météo…</div>;
+  if(er)return <div style={{fontSize:11,color:C.mut,fontFamily:"sans-serif",padding:"4px 0"}}>{er}</div>;
+  if(!m)return null;
+  return <div>
+    <div style={{background:C.light,borderRadius:10,padding:"10px 14px",marginBottom:m.gelDays&&m.gelDays.length>0?8:14,display:"flex",alignItems:"center",gap:14,border:`1px solid ${C.border}`}}>
+      <div style={{fontSize:30}}>{m.ic}</div>
+      <div style={{flex:1}}><div style={{fontSize:20,fontWeight:700,color:C.acc,fontFamily:"sans-serif",lineHeight:1}}>{m.temp}°C</div><div style={{fontSize:11,color:C.mut,fontFamily:"sans-serif"}}>Min {m.min}° · Max {m.max}°</div></div>
+      <div style={{fontSize:11,color:C.mut,fontFamily:"sans-serif",textAlign:"right"}}><div>💨 {m.wind} km/h</div><div>💧 {m.hum}%</div></div>
+    </div>
+    {m.gelDays&&m.gelDays.length>0&&<div style={{background:"#1a3a6a11",border:"1.5px solid #4a7abf",borderRadius:10,padding:"9px 13px",marginBottom:14,display:"flex",gap:10,alignItems:"flex-start"}}>
+      <span style={{fontSize:18,flexShrink:0}}>🧊</span>
+      <div><div style={{fontSize:12,fontWeight:700,color:"#4a7abf",fontFamily:"sans-serif",marginBottom:3}}>Risque de gel dans les 3 prochains jours</div>
+        {m.gelDays.map((g,i)=><div key={i} style={{fontSize:11,color:"#4a7abf",fontFamily:"sans-serif"}}>{g.date} : {g.t}°C — Protégez figuiers, pêchers et plants fragiles</div>)}
+      </div>
+    </div>}
+  </div>;
+}
+
+function AlerteSante({arbres,C,onFiche}){
+  const malades=arbres.filter(a=>a.sante==="Malade");const surveiller=arbres.filter(a=>a.sante==="À surveiller");
+  if(!malades.length&&!surveiller.length)return null;
+  return <div style={{marginBottom:14}}>{malades.length>0&&<div style={{background:"#b8404011",border:"1px solid #b8404044",borderRadius:10,padding:"10px 14px",marginBottom:8}}><div style={{fontSize:12,fontWeight:700,color:"#b84040",marginBottom:6}}>🔴 {malades.length} arbre{malades.length>1?"s":""} malade{malades.length>1?"s":""}</div>{malades.map(a=><div key={a.id} onClick={()=>onFiche(a)} style={{fontSize:12,color:"#b84040",cursor:"pointer",padding:"2px 0",textDecoration:"underline"}}>{gvi(a.variete)} {a.nom}</div>)}</div>}{surveiller.length>0&&<div style={{background:"#8a6d1e11",border:"1px solid #8a6d1e44",borderRadius:10,padding:"10px 14px"}}><div style={{fontSize:12,fontWeight:700,color:"#8a6d1e",marginBottom:6}}>🟡 {surveiller.length} à surveiller</div>{surveiller.map(a=><div key={a.id} onClick={()=>onFiche(a)} style={{fontSize:12,color:"#8a6d1e",cursor:"pointer",padding:"2px 0",textDecoration:"underline"}}>{gvi(a.variete)} {a.nom}</div>)}</div>}</div>;
+}
+
+function Dashboard({arbres,varietes,recoltes,journal,C,onFiche,getCol,onFiltreVariete,onGel}){
+  const byV={};arbres.forEach(a=>{const v=a.variete;if(v)byV[v]=(byV[v]||0)+1;});
+  const san={"Bon":0,"À surveiller":0,"Malade":0};arbres.forEach(a=>{san[a.sante||"Bon"]++;});
+  const maxV=Math.max(...Object.values(byV),1);const mo=new Date().getMonth()+1;const raps=getR(mo,arbres);
+  const pq=q=>{const n=parseFloat((q+"").replace(",","."));return isNaN(n)?0:n;};
+  const totalRec=Object.values(recoltes).flat();const totalKg=totalRec.reduce((s,r)=>s+pq(r.quantite),0);
+  const parAnnee={};totalRec.forEach(r=>{if(r.annee)parAnnee[r.annee]=(parAnnee[r.annee]||0)+pq(r.quantite);});
+  const meilleureAnnee=Object.entries(parAnnee).sort((a,b)=>b[1]-a[1])[0];
+  const ageMoyen=arbres.length?Math.round(arbres.reduce((s,a)=>s+(new Date().getFullYear()-parseInt(a.annee)),0)/arbres.length):0;
+  return <div style={{paddingBottom:10}}>
+    <Meteo C={C} onGel={onGel}/><AlerteSante arbres={arbres} C={C} onFiche={onFiche}/>
+    <p style={{fontSize:14,fontWeight:700,color:C.acc,margin:"0 0 10px",fontFamily:"'Playfair Display',Georgia,serif",letterSpacing:.5}}>Vue d'ensemble</p>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>{[{v:arbres.length,l:"Arbres plantés",e:"🌳"},{v:Object.keys(byV).length,l:"Variétés",e:"🌿"},{v:ageMoyen+" ans",l:"Âge moyen",e:"⏳"},{v:Object.values(journal).flat().length,l:"Notes journal",e:"📓"}].map(({v,l,e})=>(<div key={l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}><div style={{fontSize:20}}>{e}</div><div><div style={{fontSize:18,fontWeight:700,color:C.acc,fontFamily:"sans-serif",lineHeight:1}}>{v}</div><div style={{fontSize:10,color:C.mut,fontFamily:"sans-serif"}}>{l}</div></div></div>))}</div>
+    {totalRec.length>0&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:14}}><p style={{fontSize:11,fontFamily:"sans-serif",fontWeight:700,color:C.mut,textTransform:"uppercase",letterSpacing:.5,margin:"0 0 8px"}}>🍎 Récoltes cumulées</p><div style={{display:"flex",gap:10}}><div style={{flex:1,textAlign:"center"}}><div style={{fontSize:20,fontWeight:700,color:C.acc,fontFamily:"sans-serif"}}>{totalKg.toFixed(1)}</div><div style={{fontSize:10,color:C.mut,fontFamily:"sans-serif"}}>Total</div></div>{meilleureAnnee&&<div style={{flex:1,textAlign:"center"}}><div style={{fontSize:20,fontWeight:700,color:C.acc,fontFamily:"sans-serif"}}>{meilleureAnnee[0]} 🏆</div><div style={{fontSize:10,color:C.mut,fontFamily:"sans-serif"}}>Meilleure année</div></div>}</div></div>}
+    <div style={{marginBottom:14}}><p style={{fontSize:11,fontFamily:"sans-serif",fontWeight:700,color:C.mut,textTransform:"uppercase",letterSpacing:.5,margin:"0 0 6px"}}>État de santé</p><div style={{display:"flex",gap:8}}>{Object.entries(SAN).map(([k,sv])=>{const col=sv.c;return <div key={k} style={{flex:1,background:col+"11",border:`1px solid ${col}44`,borderRadius:8,padding:"8px 6px",textAlign:"center"}}><div style={{fontSize:16}}>{sv.i}</div><div style={{fontSize:16,fontWeight:700,color:col,fontFamily:"sans-serif"}}>{san[k]}</div><div style={{fontSize:10,color:C.mut,fontFamily:"sans-serif"}}>{k}</div></div>;})}</div></div>
+    {Object.keys(byV).length>0&&<div style={{marginBottom:14}}>
+      <p style={{fontSize:11,fontFamily:"sans-serif",fontWeight:700,color:C.mut,textTransform:"uppercase",letterSpacing:.5,margin:"0 0 6px"}}>Par variété <span style={{fontSize:10,fontWeight:400,textTransform:"none",letterSpacing:0}}>— tap pour filtrer</span></p>
+      {Object.entries(byV).sort((a,b)=>b[1]-a[1]).map(([v,n])=>{
+        const col=getCol(v);
+        return <div key={v} onClick={()=>onFiltreVariete(v)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,cursor:"pointer",padding:"4px 6px",borderRadius:8,transition:"background .15s"}}
+          onMouseEnter={e=>e.currentTarget.style.background=col+"18"}
+          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          <span style={{fontSize:14}}>{gvi(v)}</span>
+          <span style={{fontSize:12,width:78,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:C.txt}}>{v}</span>
+          <div style={{flex:1,background:C.light,borderRadius:4,height:12,overflow:"hidden"}}>
+            <div style={{width:`${(n/maxV)*100}%`,height:"100%",background:col,borderRadius:4}}/>
+          </div>
+          <span style={{fontSize:12,fontFamily:"sans-serif",color:C.mut,minWidth:14,textAlign:"right"}}>{n}</span>
+          <span style={{fontSize:10,color:col,fontFamily:"sans-serif",minWidth:16}}>→</span>
+        </div>;
+      })}
+    </div>}
+    {raps.length>0&&<div><p style={{fontSize:11,fontFamily:"sans-serif",fontWeight:700,color:C.mut,textTransform:"uppercase",letterSpacing:.5,margin:"0 0 6px"}}>🗓️ À faire en {ML[mo]}</p>{raps.map((r,i)=><div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 13px",marginBottom:8,borderLeft:`3px solid ${C.acc}`}}><div style={{fontSize:13,fontWeight:700,marginBottom:2}}>{r.e} {r.t}</div><div style={{fontSize:12,color:C.mut,lineHeight:1.5}}>{r.d}</div></div>)}</div>}
+  </div>;
+}
+
+const RN_KEY="verger-rappels-notes";
+
+function Rappels({arbres,C,onGel}){
+  const [mo,setMo]=useState(new Date().getMonth()+1);
+  const raps=getR(mo,arbres);
+  const [notes,setNotes]=useState(()=>{try{const r=localStorage.getItem(RN_KEY);return r?JSON.parse(r):{};}catch{return {};}});
+  const [newNote,setNewNote]=useState("");
+  const saveNotes=n=>{setNotes(n);try{localStorage.setItem(RN_KEY,JSON.stringify(n));}catch{}};
+  const addNote=()=>{
+    if(!newNote.trim())return;
+    const e={id:Date.now(),date:new Date().toLocaleDateString("fr-FR"),texte:newNote.trim()};
+    const mNotes=[...(notes[mo]||[]),e];
+    saveNotes({...notes,[mo]:mNotes});
+    setNewNote("");
+  };
+  const delNote=(mo2,id)=>{
+    const mNotes=(notes[mo2]||[]).filter(n=>n.id!==id);
+    saveNotes({...notes,[mo2]:mNotes});
+  };
+  const moNotes=notes[mo]||[];
+  const btn=(ex)=>({fontFamily:"Georgia,serif",fontSize:12,padding:"4px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",...ex});
+
+  return <div>
+    <Meteo C={C} onGel={onGel}/>
+    {/* Sélecteur de mois */}
+    <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap"}}>
+      {ML.slice(1).map((m,i)=>{const mo2=i+1;const a=mo2===mo;const cur=mo2===new Date().getMonth()+1;return <button key={mo2} onClick={()=>setMo(mo2)} style={{fontSize:11,fontFamily:"sans-serif",padding:"4px 8px",borderRadius:7,border:`1px solid ${a?C.acc:C.border}`,background:a?C.acc:cur?C.light:C.card,color:a?"#fff":C.txt,cursor:"pointer",fontWeight:cur?700:400,position:"relative"}}>
+        {m.slice(0,3)}
+        {(notes[mo2]||[]).length>0&&<span style={{position:"absolute",top:-4,right:-4,width:8,height:8,borderRadius:"50%",background:C.acc,border:`1px solid ${C.bg}`}}/>}
+      </button>;})}
+    </div>
+
+    <p style={{fontSize:14,fontWeight:700,color:C.acc,margin:"0 0 10px",fontFamily:"'Playfair Display',Georgia,serif"}}>{ML[mo]}</p>
+
+    {/* Rappels saisonniers automatiques */}
+    {raps.length===0&&<p style={{color:C.mut,fontStyle:"italic",fontSize:13,textAlign:"center",padding:"10px 0"}}>Pas de tâche saisonnière ce mois-ci.</p>}
+    {raps.map((r,i)=><div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 13px",marginBottom:8,borderLeft:`3px solid ${C.acc}`}}>
+      <div style={{fontSize:14,fontWeight:700,marginBottom:3}}>{r.e} {r.t}</div>
+      <div style={{fontSize:13,color:C.mut,lineHeight:1.6}}>{r.d}</div>
+      {r.v&&<div style={{marginTop:5,fontSize:11,color:C.acc,fontFamily:"sans-serif"}}>Concerne : {r.v.filter(v=>arbres.some(a=>a.variete===v)).join(" · ")||"(aucun)"}</div>}
+    </div>)}
+
+    {/* Notes manuelles */}
+    <div style={{marginTop:18,borderTop:`1.5px solid ${C.border}`,paddingTop:14}}>
+      <p style={{fontSize:13,fontWeight:700,color:C.txt,margin:"0 0 10px",fontFamily:"'Playfair Display',Georgia,serif"}}>📝 Mes notes — {ML[mo]}</p>
+      {/* Saisie */}
+      <div style={{display:"flex",gap:7,marginBottom:12}}>
+        <textarea value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&(e.preventDefault(),addNote())} rows={2}
+          placeholder={`Ajouter une note pour ${ML[mo]}…`}
+          style={{flex:1,fontFamily:"Georgia,serif",fontSize:13,padding:"7px 10px",border:`1px solid ${C.border}`,borderRadius:8,background:C.card,color:C.txt,resize:"none"}}/>
+        <button onClick={addNote} style={btn({background:C.acc,color:"#fff",borderColor:C.acc,alignSelf:"flex-end",padding:"7px 13px"})}>＋</button>
+      </div>
+      {/* Liste des notes */}
+      {moNotes.length===0&&<p style={{color:C.mut,fontStyle:"italic",fontSize:12,textAlign:"center",padding:"8px 0"}}>Aucune note ce mois-ci.</p>}
+      {[...moNotes].reverse().map(n=><div key={n.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"9px 12px",marginBottom:7,display:"flex",gap:8,borderLeft:`3px solid ${C.acc2}`}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",marginBottom:3}}>{n.date}</div>
+          <div style={{fontSize:13,color:C.txt,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{n.texte}</div>
+        </div>
+        <button onClick={()=>delNote(mo,n.id)} style={btn({padding:"2px 7px",color:C.dan,borderColor:C.dan+"44",alignSelf:"flex-start",fontSize:12})}>✕</button>
+      </div>)}
+    </div>
+  </div>;
+}
+
+function FicheVerger({arbres,varietes,recoltes,onClose,getCol,C}){
+  const pq=q=>{const n=parseFloat((q+"").replace(",","."));return isNaN(n)?0:n;};
+  const byV={};arbres.forEach(a=>{const v=a.variete;if(v)byV[v]=(byV[v]||0)+1;});
+  const totalKg=Object.values(recoltes).flat().reduce((s,r)=>s+pq(r.quantite),0);
+  const ageMoyen=arbres.length?Math.round(arbres.reduce((s,a)=>s+(new Date().getFullYear()-parseInt(a.annee)),0)/arbres.length):0;
+  const imprimerRecap=()=>{
+    const now=new Date().toLocaleDateString("fr-FR");
+    const rows=[...arbres].sort((a,b)=>a.variete.localeCompare(b.variete)||a.nom.localeCompare(b.nom)).map((a,i)=>{
+      const col=getCol(a.variete);const age=new Date().getFullYear()-parseInt(a.annee);
+      return "<tr style='background:"+(i%2===0?"#f8f6f2":"#fff")+";border-bottom:1px solid #e8e0d0;'>"
+        +"<td style='padding:5px 8px;color:#888;font-size:11px;'>#"+String(a.numero||"—").padStart(3,"0")+"</td>"
+        +"<td style='padding:5px 8px;font-weight:600;'>"+gvi(a.variete)+" "+a.nom+"</td>"
+        +"<td style='padding:5px 8px;'><span style='background:"+col+"22;color:"+col+";padding:1px 7px;border-radius:10px;font-size:11px;'>"+a.variete+"</span></td>"
+        +"<td style='padding:5px 8px;font-size:11px;'>"+a.annee+"</td>"
+        +"<td style='padding:5px 8px;font-size:11px;'>"+age+" ans</td>"
+        +"<td style='padding:5px 8px;font-size:14px;'>"+SAN[a.sante||"Bon"].i+"</td>"
+        +"</tr>";
+    }).join("");
+    const stats=[{e:"🌳",v:arbres.length,l:"Arbres"},{e:"🌿",v:Object.keys(byV).length,l:"Variétés"},{e:"⏳",v:ageMoyen+" ans",l:"Âge moyen"},{e:"🍎",v:totalKg.toFixed(1),l:"kg récoltés"}];
+    const statCells=stats.map(s=>"<div style='border:1px solid #e0d8c8;border-radius:8px;padding:12px 8px;text-align:center;background:#f8f6f2;'><div style='font-size:20px;'>"+s.e+"</div><div style='font-size:18px;font-weight:700;color:#4a7c3f;'>"+s.v+"</div><div style='font-size:10px;color:#888;'>"+s.l+"</div></div>").join("");
+    const html="<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'/><title>Mon Verger — Récapitulatif</title>"
+      +"<style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;padding:28px 36px;color:#1a1a1a;background:#fff;max-width:760px;margin:0 auto;}table{width:100%;border-collapse:collapse;}th{text-align:left;}"
+      +"@page{margin:.8cm;size:A4 portrait;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>"
+      +"<div style='border-bottom:3px solid #4a7c3f;padding-bottom:14px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;'><div><div style='font-size:26px;font-weight:700;'>🌳 Mon Verger</div><div style='font-size:13px;color:#888;'>Récapitulatif · "+now+"</div></div><div style='font-size:22px;font-weight:700;color:#4a7c3f;'>"+arbres.length+" arbres</div></div>"
+      +"<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px;'>"+statCells+"</div>"
+      +"<div style='font-size:11px;font-weight:700;color:#4a7c3f;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #e0d8c8;padding-bottom:4px;margin-bottom:10px;'>Liste des arbres</div>"
+      +"<table><thead><tr style='background:#f0ede6;'>"+["N°","Nom","Variété","Année","Âge","Santé"].map(h=>"<th style='padding:6px 8px;font-size:10px;text-transform:uppercase;color:#888;font-weight:600;border-bottom:1px solid #e0d8c8;'>"+h+"</th>").join("")+"</tr></thead><tbody>"+rows+"</tbody></table>"
+      +"<div style='margin-top:20px;padding-top:8px;border-top:1px solid #e0d8c8;display:flex;justify-content:space-between;font-size:10px;color:#aaa;'><span>Mon Verger · Récapitulatif</span><span>"+now+"</span></div>"
+      +"<script>window.onload=function(){window.print();window.close();}<\/script></body></html>";
+    const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}
+  };
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",zIndex:1000,padding:"14px 6px"}}>
+    <div style={{width:"100%",maxWidth:680}}>
+      <div style={{display:"flex",gap:8,marginBottom:8,justifyContent:"flex-end"}}>
+        <button onClick={imprimerRecap} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.acc}`,background:C.acc,color:"#fff",cursor:"pointer"}}>🖨️ Imprimer</button>
+        <button onClick={onClose} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer"}}>✕ Fermer</button>
+      </div>
+      <div style={{background:C.bg,color:C.txt,fontFamily:"Georgia,serif",padding:"28px 32px",borderRadius:10,border:`1.5px solid ${C.border}`,fontSize:"12.5px",lineHeight:1.65}}>
+        <div style={{borderBottom:`3px solid ${C.acc}`,paddingBottom:14,marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}><div><div style={{fontSize:26,fontWeight:700,color:C.txt}}>🌳 Mon Verger</div><div style={{fontSize:13,color:C.mut,fontFamily:"sans-serif"}}>Récapitulatif · {new Date().toLocaleDateString("fr-FR")}</div></div><div style={{textAlign:"right",fontFamily:"sans-serif"}}><div style={{fontSize:22,fontWeight:700,color:C.acc}}>{arbres.length} arbres</div></div></div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>{[{v:arbres.length,l:"Arbres",e:"🌳"},{v:Object.keys(byV).length,l:"Variétés",e:"🌿"},{v:ageMoyen+" ans",l:"Âge moyen",e:"⏳"},{v:totalKg.toFixed(1),l:"kg récoltés",e:"🍎"}].map(({v,l,e})=>(<div key={l} style={{background:C.light,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 8px",textAlign:"center"}}><div style={{fontSize:18}}>{e}</div><div style={{fontSize:18,fontWeight:700,color:C.acc,fontFamily:"sans-serif"}}>{v}</div><div style={{fontSize:10,color:C.mut,fontFamily:"sans-serif"}}>{l}</div></div>))}</div>
+        <div style={{marginBottom:18}}><div style={{fontSize:11,fontWeight:700,color:C.acc,textTransform:"uppercase",letterSpacing:1,fontFamily:"sans-serif",borderBottom:`1px solid ${C.border}`,paddingBottom:4,marginBottom:8}}>Liste des arbres</div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}><thead><tr style={{background:C.light}}>{["N°","Nom","Variété","Année","Âge","Santé"].map(h=><th key={h} style={{padding:"6px 8px",textAlign:"left",fontFamily:"sans-serif",fontSize:10,textTransform:"uppercase",color:C.mut,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}</tr></thead>
+          <tbody>{[...arbres].sort((a,b)=>a.variete.localeCompare(b.variete)||a.nom.localeCompare(b.nom)).map((a,i)=>{const col=getCol(a.variete);const age=new Date().getFullYear()-parseInt(a.annee);return <tr key={a.id} style={{background:i%2===0?C.card:C.light,borderBottom:`1px solid ${C.border}`}}><td style={{padding:"5px 8px",fontFamily:"sans-serif",color:C.mut,fontSize:11}}>#{String(a.numero||"—").padStart(3,"0")}</td><td style={{padding:"5px 8px",fontWeight:600,color:C.txt}}>{gvi(a.variete)} {a.nom}</td><td style={{padding:"5px 8px"}}><span style={{background:col+"22",color:col,padding:"1px 7px",borderRadius:10,fontSize:11,fontFamily:"sans-serif"}}>{a.variete}</span></td><td style={{padding:"5px 8px",fontFamily:"sans-serif",fontSize:11,color:C.txt}}>{a.annee}</td><td style={{padding:"5px 8px",fontFamily:"sans-serif",fontSize:11,color:C.txt}}>{age} ans</td><td style={{padding:"5px 8px",fontSize:13}}>{SAN[a.sante||"Bon"].i}</td></tr>;})}
+          </tbody></table>
+        </div>
+        <div style={{paddingTop:8,borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",fontSize:10,color:C.mut,fontFamily:"sans-serif"}}><span>Mon Verger · Récapitulatif</span><span>{new Date().toLocaleDateString("fr-FR")}</span></div>
+      </div>
+    </div>
+  </div>;
+}
+
+function TreeForm({initial,varietes,arbres,onSave,onClose,C}){
+  const [form,setForm]=useState(initial||{numero:"",nom:"",variete:varietes[0]||"",annee:new Date().getFullYear(),description:"",sante:"Bon",photo:"",photos:[],origine:"Pépinière",dateAchat:"",pollinisateur:""});
+  const sf=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const photoRef=useRef();
+  const [wikiQuery,setWikiQuery]=useState("");
+  const [wikiSuggs,setWikiSuggs]=useState([]);
+  const [wikiResult,setWikiResult]=useState(null);
+  const [wikiLoad,setWikiLoad]=useState(false);
+  const [wikiErr,setWikiErr]=useState(null);
+  const [showWiki,setShowWiki]=useState(false);
+  const [sites,setSites]=useState(()=>{try{const r=localStorage.getItem(SK_SITES);return r?JSON.parse(r):SITES_DEFAULT;}catch{return SITES_DEFAULT;}});
+  const [editSites,setEditSites]=useState(false);
+  const [newSite,setNewSite]=useState({nom:"",emoji:"🔗",url:""});
+  // IA
+  const [iaConfig,setIaConfig]=useState(()=>{try{const r=localStorage.getItem(IA_KEY);return r?JSON.parse(r):{provider:"claude",key:"",model:"claude-haiku-4-5-20251001"};}catch{return {provider:"claude",key:"",model:"claude-haiku-4-5-20251001"};}});
+  const [iaLoad,setIaLoad]=useState(false);
+  const [iaErr,setIaErr]=useState(null);
+  const [showIaConfig,setShowIaConfig]=useState(false);
+  const saveIaConfig=cfg=>{setIaConfig(cfg);try{localStorage.setItem(IA_KEY,JSON.stringify(cfg));}catch{}};
+
+  // Sync wikiQuery avec le nom de l'arbre saisi
+  useEffect(()=>{if(form.nom&&!wikiQuery)setWikiQuery(form.nom);},[form.nom]);
+
+  const inp={fontSize:13,padding:"7px 10px",border:`1px solid ${C.border}`,borderRadius:8,background:C.card,color:C.txt,width:"100%",boxSizing:"border-box"};
+  const btn=(ex)=>({fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",...ex});
+  const inpSm={fontSize:12,padding:"6px 9px",border:`1px solid ${C.border}`,borderRadius:8,background:C.card,color:C.txt};
+
+  const searchWiki=async()=>{
+    if(!wikiQuery.trim())return;
+    setWikiLoad(true);setWikiErr(null);setWikiResult(null);setWikiSuggs([]);
+    try{
+      const r=await fetch(`https://fr.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wikiQuery)}&limit=5&namespace=0&format=json&origin=*`);
+      const d=await r.json();
+      const titres=d[1]||[];
+      if(titres.length===0){setWikiErr("Aucun résultat.");setWikiLoad(false);return;}
+      if(titres.length===1){await loadWikiPage(titres[0]);}
+      else{setWikiSuggs(titres);}
+    }catch{setWikiErr("Erreur de connexion.");}
+    setWikiLoad(false);
+  };
+
+  const loadWikiPage=async(title)=>{
+    setWikiLoad(true);setWikiSuggs([]);
+    try{
+      const r=await fetch(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}?redirect=true`,{headers:{accept:"application/json"}});
+      if(!r.ok)throw new Error();
+      const d=await r.json();
+      setWikiResult({titre:d.title,extrait:d.extract,url:d.content_urls?.desktop?.page});
+    }catch{
+      try{
+        const r2=await fetch(`https://fr.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts&exintro=1&explaintext=1&format=json&origin=*`);
+        const d2=await r2.json();
+        const p=Object.values(d2.query.pages)[0];
+        if(p?.extract)setWikiResult({titre:p.title,extrait:p.extract.slice(0,800),url:`https://fr.wikipedia.org/wiki/${encodeURIComponent(p.title)}`});
+        else throw new Error();
+      }catch{setWikiErr("Impossible de charger la page.");}
+    }
+    setWikiLoad(false);
+  };
+
+  const importWiki=()=>{
+    if(!wikiResult)return;
+    sf("description",(form.description?form.description+"\n\n":"")+wikiResult.extrait);
+    setWikiResult(null);
+  };
+
+  const saveSites=s=>{setSites(s);try{localStorage.setItem(SK_SITES,JSON.stringify(s));}catch{}};
+  const addSite=()=>{if(!newSite.nom.trim()||!newSite.url.trim())return;saveSites([...sites,{...newSite,id:Date.now()}]);setNewSite({nom:"",emoji:"🔗",url:""});};
+  const siteUrl=s=>s.url.replace("{q}",encodeURIComponent(wikiQuery));
+
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:10}}>
+    <div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:18,width:360,maxWidth:"100%",maxHeight:"96vh",overflowY:"auto"}}>
+      <p style={{fontSize:16,fontWeight:700,margin:"0 0 14px",color:C.txt}}>{initial?"Modifier":"Ajouter un arbre"}</p>
+
+      {/* ── Recherche Wikipedia (accordéon) ── */}
+      <div style={{marginBottom:14,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
+        <button onClick={()=>setShowWiki(s=>!s)} style={{width:"100%",background:C.light,border:"none",padding:"9px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,fontFamily:"Georgia,serif",fontSize:12,color:C.acc}}>
+          <span style={{flex:1,textAlign:"left",fontWeight:600}}>🔍 Recherche & documentation</span>
+          <span style={{fontSize:11,color:C.mut}}>{showWiki?"▲":"▼"}</span>
+        </button>
+        {showWiki&&<div style={{padding:"10px 12px",background:C.bg}}>
+          <div style={{display:"flex",gap:6,marginBottom:6}}>
+            <input value={wikiQuery} onChange={e=>{setWikiQuery(e.target.value);setWikiSuggs([]);setWikiResult(null);}} onKeyDown={e=>e.key==="Enter"&&searchWiki()}
+              placeholder="Nom commun ou latin…" style={{...inpSm,flex:1}}/>
+            <button onClick={searchWiki} disabled={wikiLoad} style={{...btn({background:C.acc,color:"#fff",borderColor:C.acc,fontSize:12,padding:"4px 10px"}),opacity:wikiLoad?.6:1,minWidth:36}}>
+              {wikiLoad?"⏳":"🔍"}
+            </button>
+          </div>
+          {wikiErr&&<p style={{fontSize:11,color:C.dan,fontFamily:"sans-serif",margin:"0 0 6px"}}>{wikiErr}</p>}
+          {wikiSuggs.length>0&&<div style={{marginBottom:8}}>
+            <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:"0 0 5px"}}>Plusieurs résultats :</p>
+            {wikiSuggs.map(t=><button key={t} onClick={()=>loadWikiPage(t)}
+              style={{...btn({fontSize:11,display:"block",width:"100%",textAlign:"left",marginBottom:4,padding:"5px 10px"}),borderLeft:`3px solid ${C.acc}`}}>{t}</button>)}
+          </div>}
+          {wikiResult&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",marginBottom:8}}>
+            <p style={{fontSize:12,fontWeight:700,color:C.txt,margin:"0 0 4px"}}>{wikiResult.titre}</p>
+            <p style={{fontSize:11.5,color:C.txt,lineHeight:1.6,margin:"0 0 8px",maxHeight:90,overflowY:"auto"}}>{wikiResult.extrait}</p>
+            <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+              <button onClick={importWiki} style={btn({background:C.acc,color:"#fff",borderColor:C.acc,fontSize:11,padding:"3px 10px"})}>↓ Importer dans Notes</button>
+              {wikiResult.url&&<a href={wikiResult.url} target="_blank" rel="noreferrer" style={{fontSize:11,color:C.acc,fontFamily:"sans-serif"}}>Wikipedia →</a>}
+              <button onClick={()=>setWikiResult(null)} style={btn({fontSize:11,padding:"3px 7px"})}>✕</button>
+            </div>
+          </div>}
+          {/* Liens externes */}
+          <div style={{borderTop:`1px solid ${C.border}`,paddingTop:8,marginTop:4}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:0,fontWeight:600,textTransform:"uppercase",letterSpacing:.5}}>Rechercher aussi sur</p>
+              <button onClick={()=>setEditSites(e=>!e)} style={btn({fontSize:10,padding:"2px 7px",color:C.mut})}>{editSites?"✕":"⚙️ Gérer"}</button>
+            </div>
+            {editSites&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 10px",marginBottom:8}}>
+              {sites.map(s=><div key={s.id} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+                <span style={{fontSize:14}}>{s.emoji}</span>
+                <span style={{fontSize:11,flex:1,color:C.txt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.nom}</span>
+                <button onClick={()=>saveSites(sites.filter(x=>x.id!==s.id))} style={btn({fontSize:10,padding:"2px 6px",color:C.dan,borderColor:C.dan+"44"})}>✕</button>
+              </div>)}
+              <div style={{borderTop:`1px solid ${C.border}`,paddingTop:7,marginTop:5,display:"flex",flexDirection:"column",gap:5}}>
+                <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:0}}>Ajouter — utilise <code style={{background:C.light,padding:"1px 4px",borderRadius:3}}>{"{q}"}</code> dans l'URL</p>
+                <div style={{display:"flex",gap:5}}>
+                  <input value={newSite.emoji} onChange={e=>setNewSite(s=>({...s,emoji:e.target.value}))} style={{...inpSm,width:36,textAlign:"center"}} maxLength={2}/>
+                  <input value={newSite.nom} onChange={e=>setNewSite(s=>({...s,nom:e.target.value}))} style={{...inpSm,flex:1}} placeholder="Nom du site"/>
+                </div>
+                <div style={{display:"flex",gap:5}}>
+                  <input value={newSite.url} onChange={e=>setNewSite(s=>({...s,url:e.target.value}))} style={{...inpSm,flex:1,fontSize:11}} placeholder="https://site.fr/search?q={q}"/>
+                  <button onClick={addSite} style={btn({background:C.acc,color:"#fff",borderColor:C.acc,padding:"4px 9px"})}>+</button>
+                </div>
+              </div>
+            </div>}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {sites.map(s=><a key={s.id} href={siteUrl(s)} target="_blank" rel="noreferrer"
+                style={{fontSize:11,fontFamily:"sans-serif",padding:"4px 10px",borderRadius:7,background:C.card,border:`1px solid ${C.border}`,color:C.acc,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:4}}>
+                {s.emoji} {s.nom} →
+              </a>)}
+            </div>
+          </div>
+        </div>}
+      </div>
+
+      <div style={{display:"flex",gap:8,marginBottom:10}}><div style={{flex:1}}><label style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,display:"block",marginBottom:3}}>Numéro</label><input value={form.numero} onChange={e=>sf("numero",e.target.value)} placeholder="001" style={inp}/></div><div style={{flex:2}}><label style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,display:"block",marginBottom:3}}>Nom</label><input value={form.nom} onChange={e=>sf("nom",e.target.value)} placeholder="Reine des Reinettes" style={inp}/></div></div>
+      <div style={{display:"flex",gap:8,marginBottom:10}}><div style={{flex:2}}><label style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,display:"block",marginBottom:3}}>Variété</label><select value={form.variete} onChange={e=>sf("variete",e.target.value)} style={inp}>{varietes.map(v=><option key={v} value={v}>{gvi(v)} {v}</option>)}</select></div><div style={{flex:1}}><label style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,display:"block",marginBottom:3}}>Année</label><input type="number" value={form.annee} onChange={e=>sf("annee",e.target.value)} style={inp}/></div></div>
+      <div style={{display:"flex",gap:8,marginBottom:10}}><div style={{flex:2}}><label style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,display:"block",marginBottom:3}}>Origine</label><select value={form.origine||"Pépinière"} onChange={e=>sf("origine",e.target.value)} style={inp}>{ORIGINES.map(o=><option key={o}>{o}</option>)}</select></div><div style={{flex:2}}><label style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,display:"block",marginBottom:3}}>Date d'achat</label><input type="date" value={form.dateAchat||""} onChange={e=>sf("dateAchat",e.target.value)} style={inp}/></div></div>
+      <div style={{marginBottom:10}}><label style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,display:"block",marginBottom:3}}>🌸 Pollinisateur</label><select value={form.pollinisateur||""} onChange={e=>sf("pollinisateur",e.target.value)} style={inp}><option value="">— Aucun —</option>{arbres.filter(a=>a.id!==initial?.id).map(a=><option key={a.id} value={a.id}>{gvi(a.variete)} {a.nom}</option>)}</select></div>
+      <div style={{marginBottom:10}}><label style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,display:"block",marginBottom:3}}>Santé</label><div style={{display:"flex",gap:6}}>{Object.entries(SAN).map(([k,v])=><button key={k} onClick={()=>sf("sante",k)} style={{...btn({flex:1,fontSize:11}),background:form.sante===k?v.c+"22":C.card,borderColor:form.sante===k?v.c:C.border,color:form.sante===k?v.c:C.mut}}>{v.i} {k}</button>)}</div></div>
+      <div style={{marginBottom:10}}><label style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,display:"block",marginBottom:5}}>Photo principale</label><input ref={photoRef} type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;try{sf("photo",await b64(f));}catch(err){console.error(err);}e.target.value="";}} style={{display:"none"}}/><button onClick={()=>photoRef.current.click()} style={{fontFamily:"Georgia,serif",fontSize:12,padding:"8px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:C.light,color:C.acc,cursor:"pointer",width:"100%"}}>📷 {form.photo?"Changer la photo":"Choisir une photo"}</button>{form.photo&&<img src={form.photo} alt="" style={{marginTop:6,width:"100%",height:80,objectFit:"cover",borderRadius:7,border:`1px solid ${C.border}`}}/>}</div>
+      <div style={{marginBottom:14}}><label style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,display:"block",marginBottom:3}}>Notes</label><textarea value={form.description} onChange={e=>sf("description",e.target.value)} rows={2} style={{...inp,resize:"vertical"}}/></div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={onClose} style={btn()}>Annuler</button><button onClick={()=>form.nom.trim()&&onSave(form)} style={btn({background:C.acc,color:"#fff",borderColor:C.acc})}>Enregistrer</button></div>
+    </div>
+  </div>;
+}
+
+function VarForm({varietes,onSave,onClose,C}){
+  const [list,setList]=useState([...varietes]);const [nv,setNv]=useState("");
+  const add=()=>{const v=nv.trim();if(v&&!list.includes(v)){setList([...list,v].sort((a,b)=>a.localeCompare(b,"fr")));setNv("");}};
+  const inp={fontSize:13,padding:"7px 10px",border:`1px solid ${C.border}`,borderRadius:8,background:C.card,color:C.txt};
+  const btn=(ex)=>({fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",...ex});
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:10}}>
+    <div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:18,width:340,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+      <p style={{fontSize:16,fontWeight:700,margin:"0 0 14px",color:C.txt}}>Gérer les variétés</p>
+      <div style={{maxHeight:200,overflowY:"auto",marginBottom:12,display:"flex",flexDirection:"column",gap:5}}>{list.map(v=><div key={v} style={{display:"flex",alignItems:"center",background:C.light,borderRadius:7,padding:"5px 10px",gap:8}}><span style={{fontSize:16}}>{gvi(v)}</span><span style={{flex:1,fontSize:13,color:C.txt}}>{v}</span><button onClick={()=>setList(list.filter(x=>x!==v))} style={{...btn(),padding:"2px 8px",color:C.dan,borderColor:C.dan+"44"}}>✕</button></div>)}</div>
+      <div style={{display:"flex",gap:8,marginBottom:14}}><input value={nv} onChange={e=>setNv(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Nouvelle variété…" style={{...inp,flex:1}}/><button onClick={add} style={btn({background:C.acc,color:"#fff",borderColor:C.acc})}>+</button></div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={onClose} style={btn()}>Annuler</button><button onClick={()=>onSave(list)} style={btn({background:C.acc,color:"#fff",borderColor:C.acc})}>Enregistrer</button></div>
+    </div>
+  </div>;
+}
+
+const SITES_DEFAULT=[
+  {id:1,nom:"mesarbustes.fr",emoji:"🌿",url:"https://www.mesarbustes.fr/recherche?q={q}"},
+  {id:2,nom:"gerbeaud.com",emoji:"🌸",url:"https://www.gerbeaud.com/recherche?q={q}"},
+];
+const SK_SITES="verger-sites-recherche";
+
+// ════════════════════════════════════════════════════════════
+// CONFIGURATION IA
+// Clés API stockées localement (jamais partagées).
+// Chaque utilisateur doit saisir sa propre clé.
+// Modèles supportés : Claude (Anthropic), GPT-4 (OpenAI), Gemini (Google)
+// ════════════════════════════════════════════════════════════
+const IA_KEY="verger-ia-config"; // clé localStorage pour config IA
+const IA_PROVIDERS={
+  claude:{
+    nom:"Claude",emoji:"✨",color:"#c77c3c",
+    url:"https://api.anthropic.com/v1/messages",
+    models:["claude-haiku-4-5-20251001","claude-sonnet-4-6"],
+    modelDefault:"claude-haiku-4-5-20251001",
+    doc:"https://console.anthropic.com/",
+    gratuit:"Gratuit avec crédit offert"
+  },
+  openai:{
+    nom:"GPT-4",emoji:"🤖",color:"#10a37f",
+    url:"https://api.openai.com/v1/chat/completions",
+    models:["gpt-4o-mini","gpt-4o"],
+    modelDefault:"gpt-4o-mini",
+    doc:"https://platform.openai.com/api-keys",
+    gratuit:"Crédit offert au départ"
+  },
+  gemini:{
+    nom:"Gemini",emoji:"💎",color:"#4285f4",
+    url:"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+    models:["gemini-1.5-flash","gemini-1.5-pro"],
+    modelDefault:"gemini-1.5-flash",
+    doc:"https://aistudio.google.com/app/apikey",
+    gratuit:"Plan gratuit disponible"
+  },
+};
+
+
+// ════════════════════════════════════════════════════════════
+// FICHE DÉTAIL D'UN ARBRE (modal principal)
+// Onglets : 🌿 Info/fiche | 📷 Galerie | 📓 Journal | 🍎 Récoltes
+// Nouvelles fonctionnalités :
+//   - Swipe tactile gauche/droite pour passer à l'arbre suivant/précédent
+//   - Flèches ‹ › et indicateur "N / Total" en haut du modal
+//   - allArbres : liste complète pour la navigation
+//   - onSwipe("left"|"right") : callback vers App pour changer l'arbre
+// ════════════════════════════════════════════════════════════
+function FicheDetail({arbre,ficheManuelle,journal,recoltes,varietes,arbres,onMod,onPrint,onClose,onSaveJ,onSaveR,onSaveP,onSaveFiche,C,getCol,allArbres,onSwipe}){
+  const [tab,setTab]=useState("info");const [nn,setNn]=useState("");const [nr,setNr]=useState({annee:new Date().getFullYear(),quantite:"",note:""});
+  const [editFiche,setEditFiche]=useState(false);
+  const SECTIONS=["Description botanique","Fruit / feuillage","Culture (sol, exposition)","Taille & entretien","Pollinisation","Usages & conservation"];
+  const [fdata,setFdata]=useState(ficheManuelle||{});
+  const [wikiQuery,setWikiQuery]=useState(arbre.nom||"");
+  const [wikiSuggs,setWikiSuggs]=useState([]);
+  const [wikiResult,setWikiResult]=useState(null);
+  const [wikiLoad,setWikiLoad]=useState(false);
+  const [wikiErr,setWikiErr]=useState(null);
+  const [sites,setSites]=useState(()=>{try{const r=localStorage.getItem(SK_SITES);return r?JSON.parse(r):SITES_DEFAULT;}catch{return SITES_DEFAULT;}});
+  const [editSites,setEditSites]=useState(false);
+  const [newSite,setNewSite]=useState({nom:"",emoji:"🔗",url:""});
+  // IA
+  const [iaConfig,setIaConfig]=useState(()=>{try{const r=localStorage.getItem(IA_KEY);return r?JSON.parse(r):{provider:"claude",key:"",model:"claude-haiku-4-5-20251001"};}catch{return {provider:"claude",key:"",model:"claude-haiku-4-5-20251001"};}});
+  const [iaLoad,setIaLoad]=useState(false);
+  const [iaErr,setIaErr]=useState(null);
+  const [showIaConfig,setShowIaConfig]=useState(false);
+  const saveIaConfig=cfg=>{setIaConfig(cfg);try{localStorage.setItem(IA_KEY,JSON.stringify(cfg));}catch{}};
+  // Swipe gauche/droite pour naviguer entre les arbres (mobile)
+  const swipeRef=useRef(null);
+  const onSwipeStart=e=>swipeRef.current=e.touches[0].clientX;
+  const onSwipeEnd=e=>{if(swipeRef.current===null)return;const dx=e.changedTouches[0].clientX-swipeRef.current;if(Math.abs(dx)>60)onSwipe&&onSwipe(dx<0?"left":"right");swipeRef.current=null;};
+  // idx = position de l'arbre courant dans la liste complète (pour les flèches ‹ ›)
+  const idx=allArbres?allArbres.findIndex(a=>a.id===arbre.id):-1;
+  const hasPrev=idx>0;const hasNext=allArbres&&idx<allArbres.length-1;
+  const col=getCol(arbre.variete);const san=SAN[arbre.sante||"Bon"];const sc=san.c;
+  const jE=(journal[arbre.id]||[]).slice().reverse();const rE=(recoltes[arbre.id]||[]).slice().sort((a,b)=>b.annee-a.annee);
+  const ph=arbre.photos||[];const pollinisateur=arbre.pollinisateur?arbres.find(a=>a.id==arbre.pollinisateur):null;
+  const addN=()=>{if(!nn.trim())return;const e={id:Date.now(),date:new Date().toLocaleDateString("fr-FR"),texte:nn.trim()};onSaveJ(arbre.id,[...(journal[arbre.id]||[]),e]);setNn("");};
+  const addR=()=>{if(!nr.quantite)return;onSaveR(arbre.id,[...(recoltes[arbre.id]||[]),{id:Date.now(),...nr}]);setNr({annee:new Date().getFullYear(),quantite:"",note:""});};
+  const saveFiche=()=>{onSaveFiche(arbre.id,fdata);setEditFiche(false);setWikiResult(null);setWikiSuggs([]);};
+  const saveSites=s=>{setSites(s);try{localStorage.setItem(SK_SITES,JSON.stringify(s));}catch{}};
+  const addSite=()=>{if(!newSite.nom.trim()||!newSite.url.trim())return;const s=[...sites,{...newSite,id:Date.now()}];saveSites(s);setNewSite({nom:"",emoji:"🔗",url:""});};
+  const delSite=id=>saveSites(sites.filter(s=>s.id!==id));
+  const hasFiche=SECTIONS.some(s=>fdata[s]&&fdata[s].trim());
+  const inp={fontSize:12,padding:"6px 9px",border:`1px solid ${C.border}`,borderRadius:8,background:C.card,color:C.txt};
+  const btn=(ex)=>({fontFamily:"Georgia,serif",fontSize:12,padding:"4px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",...ex});
+
+  const searchWiki=async()=>{
+    if(!wikiQuery.trim())return;
+    setWikiLoad(true);setWikiErr(null);setWikiResult(null);setWikiSuggs([]);
+    try{
+      // OpenSearch API - supporte CORS nativement
+      const r=await fetch(`https://fr.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(wikiQuery)}&limit=5&namespace=0&format=json&origin=*`);
+      const d=await r.json();
+      // d[1] = titres, d[3] = urls
+      const titres=d[1]||[];
+      if(titres.length===0){setWikiErr("Aucun résultat. Essaie un autre terme.");setWikiLoad(false);return;}
+      if(titres.length===1){await loadWikiPage(titres[0]);}
+      else{setWikiSuggs(titres);}
+    }catch(e){setWikiErr("Erreur de connexion. Vérifie ta connexion internet.");}
+    setWikiLoad(false);
+  };
+
+  const loadWikiPage=async(title)=>{
+    setWikiLoad(true);setWikiSuggs([]);
+    try{
+      const r=await fetch(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}?redirect=true`,{headers:{accept:"application/json"}});
+      if(!r.ok)throw new Error();
+      const d=await r.json();
+      setWikiResult({titre:d.title,extrait:d.extract,url:d.content_urls?.desktop?.page});
+    }catch{
+      // Fallback : extraire via action=query
+      try{
+        const r2=await fetch(`https://fr.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts&exintro=1&explaintext=1&format=json&origin=*`);
+        const d2=await r2.json();
+        const pages=Object.values(d2.query.pages);
+        const p=pages[0];
+        if(p&&p.extract){
+          setWikiResult({titre:p.title,extrait:p.extract.slice(0,800),url:`https://fr.wikipedia.org/wiki/${encodeURIComponent(p.title)}`});
+        }else throw new Error();
+      }catch{setWikiErr("Impossible de charger la page.");}
+    }
+    setWikiLoad(false);
+  };
+
+  const importWiki=()=>{
+    if(!wikiResult)return;
+    setFdata(d=>({...d,"Description botanique":(d["Description botanique"]?d["Description botanique"]+"\n\n":"")+wikiResult.extrait}));
+    setWikiResult(null);
+  };
+
+  const genFicheIA=async()=>{
+    if(!iaConfig.key.trim()){setShowIaConfig(true);return;}
+    setIaLoad(true);setIaErr(null);
+    const prompt=`Tu es un expert en arboriculture fruitière. Génère une fiche complète en français pour cet arbre :
+Nom : ${arbre.nom}
+Variété : ${arbre.variete}
+Année plantation : ${arbre.annee}
+${arbre.description?"Notes : "+arbre.description:""}
+
+Réponds UNIQUEMENT avec un objet JSON valide (pas de markdown, pas de backticks) avec exactement ces 6 clés :
+{"Description botanique":"...","Fruit / feuillage":"...","Culture (sol, exposition)":"...","Taille & entretien":"...","Pollinisation":"...","Usages & conservation":"..."}
+Chaque valeur : 2-4 phrases précises et pratiques.`;
+    try{
+      let text="";
+      const p=IA_PROVIDERS[iaConfig.provider];
+      const model=iaConfig.model||p.modelDefault;
+      if(iaConfig.provider==="claude"){
+        const r=await fetch(p.url,{method:"POST",headers:{"Content-Type":"application/json","x-api-key":iaConfig.key,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:1200,messages:[{role:"user",content:prompt}]})});
+        const d=await r.json();
+        if(!r.ok)throw new Error(d.error?.message||"Erreur Claude");
+        text=d.content[0].text;
+      }else if(iaConfig.provider==="openai"){
+        const r=await fetch(p.url,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+iaConfig.key},body:JSON.stringify({model,messages:[{role:"user",content:prompt}],max_tokens:1200})});
+        const d=await r.json();
+        if(!r.ok)throw new Error(d.error?.message||"Erreur OpenAI");
+        text=d.choices[0].message.content;
+      }else if(iaConfig.provider==="gemini"){
+        const url=p.url.replace("{model}",model)+"?key="+iaConfig.key;
+        const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
+        const d=await r.json();
+        if(!r.ok)throw new Error(d.error?.message||"Erreur Gemini");
+        text=d.candidates[0].content.parts[0].text;
+      }
+      const clean=text.replace(/```json|```/g,"").trim();
+      const parsed=JSON.parse(clean);
+      setFdata(d=>({...d,...parsed}));
+    }catch(e){setIaErr(e.message||"Erreur de génération.");}
+    setIaLoad(false);
+  };
+
+  const siteUrl=s=>s.url.replace("{q}",encodeURIComponent(wikiQuery));
+
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:10}} onClick={onClose}>
+    <div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:18,width:380,maxWidth:"100%",maxHeight:"96vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()} onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
+      {(hasPrev||hasNext)&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <button onClick={()=>onSwipe("right")} disabled={!hasPrev} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"3px 12px",cursor:hasPrev?"pointer":"default",color:hasPrev?C.acc:C.border,fontSize:18}}>&#8249;</button>
+        <span style={{fontSize:10,color:C.mut,fontFamily:"sans-serif"}}>{idx+1} / {allArbres.length}</span>
+        <button onClick={()=>onSwipe("left")} disabled={!hasNext} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"3px 12px",cursor:hasNext?"pointer":"default",color:hasNext?C.acc:C.border,fontSize:18}}>&#8250;</button>
+      </div>}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+        <div><p style={{margin:0,fontSize:17,fontWeight:700,color:C.txt}}>{gvi(arbre.variete)} {arbre.nom}</p><p style={{margin:"2px 0 5px",fontSize:12,color:C.mut,fontFamily:"sans-serif"}}>#{arbre.numero||"—"} · {arbre.annee}</p><div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}><Badge text={arbre.variete} color={col}/><span style={{fontSize:12,fontFamily:"sans-serif",color:sc}}>{san.i} {arbre.sante||"Bon"}</span>{arbre.origine&&<span style={{fontSize:11,fontFamily:"sans-serif",color:C.mut}}>· {arbre.origine}</span>}</div>{pollinisateur&&<p style={{margin:"4px 0 0",fontSize:11,color:C.acc,fontFamily:"sans-serif"}}>🌸 {gvi(pollinisateur.variete)} {pollinisateur.nom}</p>}<div style={{marginTop:8,maxWidth:200}}><AgeBar annee={arbre.annee} color={col}/></div></div>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5}}>{arbre.photo&&<img src={arbre.photo} alt="" style={{width:60,height:60,objectFit:"cover",borderRadius:8,border:`1px solid ${C.border}`}}/>}<button onClick={onClose} style={btn()}>✕</button></div>
+      </div>
+      <div style={{display:"flex",borderBottom:`1.5px solid ${C.border}`,marginBottom:12}}>{[["info","🌿"],["galerie","📷"],["journal","📓"],["recoltes","🍎"]].map(([k,ic])=><button key={k} onClick={()=>setTab(k)} style={{padding:"7px 10px",fontSize:12,fontFamily:"sans-serif",cursor:"pointer",border:"none",background:"none",color:tab===k?col:C.mut,borderBottom:`2px solid ${tab===k?col:"transparent"}`,marginBottom:-1.5,fontWeight:tab===k?600:400}}>{ic}</button>)}</div>
+      {tab==="info"&&<div>
+        {arbre.description&&<div style={{background:C.light,borderRadius:8,padding:"8px 12px",marginBottom:10,borderLeft:`3px solid ${col}`}}><p style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,margin:"0 0 3px",textTransform:"uppercase"}}>Notes</p><p style={{fontSize:13,margin:0,color:C.txt}}>{arbre.description}</p></div>}
+        {!editFiche&&hasFiche&&<div style={{marginBottom:10}}>
+          {SECTIONS.filter(s=>fdata[s]&&fdata[s].trim()).map(s=><div key={s} style={{marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+              <div style={{width:3,height:16,borderRadius:2,background:col,flexShrink:0}}/>
+              <p style={{fontSize:11,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:700,color:col,textTransform:"uppercase",letterSpacing:1.2,margin:0}}>{s}</p>
+            </div>
+            <p style={{fontSize:13,margin:0,lineHeight:1.7,color:C.txt,whiteSpace:"pre-wrap",paddingLeft:11}}>{fdata[s]}</p>
+          </div>)}
+        </div>}
+        {!editFiche&&!hasFiche&&<p style={{color:C.mut,fontStyle:"italic",fontSize:13,textAlign:"center",padding:"16px 0"}}>Aucune fiche renseignée.</p>}
+        {editFiche&&<div style={{marginBottom:10}}>
+          <p style={{fontSize:12,fontWeight:700,color:C.acc,margin:"0 0 8px"}}>📝 Éditer la fiche</p>
+          {/* Bloc recherche */}
+          <div style={{background:C.light,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",marginBottom:14}}>
+            <p style={{fontSize:11,fontWeight:700,color:C.mut,fontFamily:"sans-serif",margin:"0 0 7px",textTransform:"uppercase",letterSpacing:.5}}>🔍 Recherche & import</p>
+            {/* Champ + bouton Wikipedia */}
+            <div style={{display:"flex",gap:6,marginBottom:6}}>
+              <input value={wikiQuery} onChange={e=>{setWikiQuery(e.target.value);setWikiSuggs([]);setWikiResult(null);}} onKeyDown={e=>e.key==="Enter"&&searchWiki()}
+                placeholder="Nom commun ou latin…" style={{...inp,flex:1}}/>
+              <button onClick={searchWiki} disabled={wikiLoad} style={btn({background:C.acc,color:"#fff",borderColor:C.acc,opacity:wikiLoad?.6:1,minWidth:36})}>
+                {wikiLoad?"⏳":"🔍"}
+              </button>
+            </div>
+            {wikiErr&&<p style={{fontSize:11,color:C.dan,fontFamily:"sans-serif",margin:"0 0 6px"}}>{wikiErr}</p>}
+            {/* Suggestions Wikipedia */}
+            {wikiSuggs.length>0&&<div style={{marginBottom:8}}>
+              <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:"0 0 5px"}}>Plusieurs résultats — choisis :</p>
+              {wikiSuggs.map(t=><button key={t} onClick={()=>loadWikiPage(t)}
+                style={{...btn({background:C.card,fontSize:11,display:"block",width:"100%",textAlign:"left",marginBottom:4,padding:"5px 10px"}),borderLeft:`3px solid ${C.acc}`}}>
+                {t}
+              </button>)}
+            </div>}
+            {/* Résultat Wikipedia */}
+            {wikiResult&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",marginBottom:8}}>
+              <p style={{fontSize:12,fontWeight:700,color:C.txt,margin:"0 0 4px"}}>{wikiResult.titre}</p>
+              <p style={{fontSize:11.5,color:C.txt,lineHeight:1.6,margin:"0 0 8px",maxHeight:100,overflowY:"auto"}}>{wikiResult.extrait}</p>
+              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                <button onClick={importWiki} style={btn({background:C.acc,color:"#fff",borderColor:C.acc,fontSize:11})}>↓ Importer</button>
+                {wikiResult.url&&<a href={wikiResult.url} target="_blank" rel="noreferrer" style={{fontSize:11,color:C.acc,fontFamily:"sans-serif"}}>Wikipedia →</a>}
+                <button onClick={()=>setWikiResult(null)} style={btn({fontSize:11,padding:"3px 7px"})}>✕</button>
+              </div>
+            </div>}
+            {/* Liens externes */}
+            <div style={{borderTop:`1px solid ${C.border}`,paddingTop:8,marginTop:4}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:0,fontWeight:600,textTransform:"uppercase",letterSpacing:.5}}>Rechercher aussi sur</p>
+                <button onClick={()=>setEditSites(e=>!e)} style={btn({fontSize:10,padding:"2px 7px",color:C.mut})}>{editSites?"✕ Fermer":"⚙️ Gérer"}</button>
+              </div>
+              {/* Gestionnaire de sites */}
+              {editSites&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 10px",marginBottom:8}}>
+                {sites.map(s=><div key={s.id} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+                  <span style={{fontSize:14}}>{s.emoji}</span>
+                  <span style={{fontSize:11,flex:1,color:C.txt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.nom}</span>
+                  <button onClick={()=>delSite(s.id)} style={btn({fontSize:10,padding:"2px 6px",color:C.dan,borderColor:C.dan+"44"})}>✕</button>
+                </div>)}
+                <div style={{borderTop:`1px solid ${C.border}`,paddingTop:7,marginTop:5,display:"flex",flexDirection:"column",gap:5}}>
+                  <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:0}}>Ajouter un site — utilise <code style={{background:C.light,padding:"1px 4px",borderRadius:3}}>{"{q}"}</code> pour le terme recherché dans l'URL</p>
+                  <div style={{display:"flex",gap:5}}>
+                    <input value={newSite.emoji} onChange={e=>setNewSite(s=>({...s,emoji:e.target.value}))} style={{...inp,width:36,textAlign:"center"}} maxLength={2} placeholder="🔗"/>
+                    <input value={newSite.nom} onChange={e=>setNewSite(s=>({...s,nom:e.target.value}))} style={{...inp,flex:1}} placeholder="Nom du site"/>
+                  </div>
+                  <div style={{display:"flex",gap:5}}>
+                    <input value={newSite.url} onChange={e=>setNewSite(s=>({...s,url:e.target.value}))} style={{...inp,flex:1,fontSize:11}} placeholder="https://exemple.com/recherche?q={q}"/>
+                    <button onClick={addSite} style={btn({background:C.acc,color:"#fff",borderColor:C.acc,padding:"4px 9px"})}>+</button>
+                  </div>
+                </div>
+              </div>}
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {sites.map(s=><a key={s.id} href={siteUrl(s)} target="_blank" rel="noreferrer"
+                  style={{fontSize:11,fontFamily:"sans-serif",padding:"4px 10px",borderRadius:7,background:C.card,border:`1px solid ${C.border}`,color:C.acc,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:4}}>
+                  {s.emoji} {s.nom} →
+                </a>)}
+              </div>
+            </div>
+          </div>
+          {/* ── Bloc génération IA ── */}
+          <div style={{background:C.light,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <p style={{fontSize:11,fontWeight:700,color:C.mut,fontFamily:"sans-serif",margin:0,textTransform:"uppercase",letterSpacing:.5}}>✨ Générer avec l'IA</p>
+              <button onClick={()=>setShowIaConfig(s=>!s)} style={btn({fontSize:10,padding:"2px 8px",color:C.mut})}>{showIaConfig?"✕":"⚙️ Config"}</button>
+            </div>
+            {showIaConfig&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+              <p style={{fontSize:11,color:C.mut,fontFamily:"sans-serif",margin:"0 0 8px"}}>Choisis ton IA et saisis ta clé API :</p>
+              <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>
+                {Object.entries(IA_PROVIDERS).map(([k,p])=><button key={k} onClick={()=>saveIaConfig({...iaConfig,provider:k,model:p.modelDefault})}
+                  style={{...btn({fontSize:11,padding:"4px 10px"}),background:iaConfig.provider===k?p.color+"22":C.card,borderColor:iaConfig.provider===k?p.color:C.border,color:iaConfig.provider===k?p.color:C.txt}}>
+                  {p.emoji} {p.nom}
+                </button>)}
+              </div>
+              {Object.entries(IA_PROVIDERS).map(([k,p])=>iaConfig.provider===k&&<div key={k}>
+                <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:"0 0 4px"}}>{p.gratuit} · <a href={p.doc} target="_blank" rel="noreferrer" style={{color:C.acc}}>Obtenir une clé →</a></p>
+                <div style={{display:"flex",gap:5,marginBottom:6}}>
+                  <input type="password" value={iaConfig.key} onChange={e=>saveIaConfig({...iaConfig,key:e.target.value})} placeholder="Colle ta clé API ici…"
+                    style={{...inp,flex:1,fontFamily:"monospace",fontSize:11}}/>
+                </div>
+                <div style={{display:"flex",gap:5,alignItems:"center"}}>
+                  <span style={{fontSize:10,color:C.mut,fontFamily:"sans-serif"}}>Modèle :</span>
+                  {p.models.map(m=><button key={m} onClick={()=>saveIaConfig({...iaConfig,model:m})}
+                    style={{...btn({fontSize:10,padding:"2px 8px"}),background:iaConfig.model===m?p.color+"22":C.card,borderColor:iaConfig.model===m?p.color:C.border,color:iaConfig.model===m?p.color:C.txt}}>{m.split("-").slice(-2).join("-")}</button>)}
+                </div>
+              </div>)}
+              {iaConfig.key&&<p style={{fontSize:10,color:"#4a7c3f",fontFamily:"sans-serif",margin:"6px 0 0"}}>✓ Clé configurée</p>}
+            </div>}
+            {iaErr&&<p style={{fontSize:11,color:C.dan,fontFamily:"sans-serif",margin:"0 0 8px"}}>{iaErr}</p>}
+            <button onClick={genFicheIA} disabled={iaLoad}
+              style={{...btn({background:iaLoad?"#aaa":IA_PROVIDERS[iaConfig.provider].color,color:"#fff",borderColor:"transparent",width:"100%",justifyContent:"center",padding:"8px"}),opacity:iaLoad?.7:1}}>
+              {iaLoad?"⏳ Génération en cours…":`${IA_PROVIDERS[iaConfig.provider].emoji} Générer la fiche avec ${IA_PROVIDERS[iaConfig.provider].nom}`}
+            </button>
+            <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:"6px 0 0",textAlign:"center"}}>Remplira automatiquement les 6 sections ci-dessous</p>
+          </div>
+          {SECTIONS.map(s=><div key={s} style={{marginBottom:10}}>
+            <label style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,display:"block",marginBottom:3,fontWeight:600}}>{s}</label>
+            <textarea value={fdata[s]||""} onChange={e=>setFdata(d=>({...d,[s]:e.target.value}))} rows={3} placeholder={`Renseigner : ${s.toLowerCase()}…`}
+              style={{...inp,width:"100%",resize:"vertical",fontFamily:"Georgia,serif",lineHeight:1.5}}/>
+          </div>)}
+          <div style={{display:"flex",gap:7,justifyContent:"flex-end",marginTop:4}}>
+            <button onClick={()=>{setFdata(ficheManuelle||{});setEditFiche(false);setWikiResult(null);setWikiSuggs([]);}} style={btn()}>Annuler</button>
+            <button onClick={saveFiche} style={btn({background:C.acc,color:"#fff",borderColor:C.acc})}>✓ Enregistrer</button>
+          </div>
+        </div>}
+        <div style={{display:"flex",gap:7,flexWrap:"wrap",borderTop:`1px solid ${C.border}`,paddingTop:10,marginTop:6}}>
+          <button onClick={()=>{setFdata(ficheManuelle||{});setEditFiche(e=>!e);setWikiResult(null);setWikiSuggs([]);}} style={btn({background:C.light,color:C.acc,borderColor:C.acc2})}>📝 {editFiche?"Annuler édition":(hasFiche?"Modifier la fiche":"Créer la fiche")}</button>
+          <button onClick={onPrint} style={btn()}>🖨️</button>
+          <button onClick={onMod} style={btn()}>✏️</button>
+        </div>
+      </div>}
+      {tab==="galerie"&&<div><p style={{fontSize:12,color:C.mut,fontFamily:"sans-serif",margin:"0 0 10px"}}>Photos au fil des saisons.</p><Galerie photos={ph} onAdd={b=>onSaveP(arbre.id,[...ph,b])} onDel={i=>onSaveP(arbre.id,ph.filter((_,idx)=>idx!==i))} C={C}/></div>}
+      {tab==="journal"&&<div><div style={{display:"flex",gap:7,marginBottom:10}}><textarea value={nn} onChange={e=>setNn(e.target.value)} rows={2} placeholder="Taille, traitement…" style={{...inp,flex:1,resize:"none"}}/><button onClick={addN} style={{...btn({background:C.acc,color:"#fff",borderColor:C.acc}),alignSelf:"flex-end"}}>+</button></div>{jE.length===0&&<p style={{color:C.mut,fontStyle:"italic",fontSize:13,textAlign:"center",padding:"10px 0"}}>Aucune entrée.</p>}{jE.map(e=><div key={e.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",marginBottom:6,display:"flex",gap:8}}><div style={{flex:1}}><p style={{fontSize:11,color:C.mut,fontFamily:"sans-serif",margin:"0 0 2px"}}>{e.date}</p><p style={{fontSize:13,margin:0,color:C.txt}}>{e.texte}</p></div><button onClick={()=>onSaveJ(arbre.id,(journal[arbre.id]||[]).filter(x=>x.id!==e.id))} style={btn({color:C.dan,borderColor:C.dan+"44",alignSelf:"flex-start"})}>✕</button></div>)}</div>}
+      {tab==="recoltes"&&<div><Graf list={rE} color={col} C={C}/><div style={{borderTop:`1px solid ${C.border}`,paddingTop:10,marginTop:8}}><div style={{display:"flex",gap:7,marginBottom:10,flexWrap:"wrap"}}><input type="number" value={nr.annee} onChange={e=>setNr(r=>({...r,annee:e.target.value}))} style={{...inp,width:70}}/><input value={nr.quantite} onChange={e=>setNr(r=>({...r,quantite:e.target.value}))} style={{...inp,flex:1}} placeholder="Quantité"/><button onClick={addR} style={btn({background:C.acc,color:"#fff",borderColor:C.acc})}>+</button></div>{rE.map(e=><div key={e.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",marginBottom:6,display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13,fontWeight:700,color:C.acc,minWidth:36}}>{e.annee}</span><span style={{fontSize:13,flex:1,color:C.txt}}>{e.quantite}</span>{e.note&&<span style={{fontSize:12,color:C.mut,fontStyle:"italic"}}>{e.note}</span>}<button onClick={()=>onSaveR(arbre.id,(recoltes[arbre.id]||[]).filter(x=>x.id!==e.id))} style={btn({color:C.dan,borderColor:C.dan+"44"})}>✕</button></div>)}</div></div>}
+    </div>
+  </div>;
+}
+
+function FicheImp({arbre,ficheManuelle,varietes,arbres,onClose,getCol}){
+  const col=getCol(arbre.variete);const san=SAN[arbre.sante||"Bon"];
+  const SECTIONS=["Description botanique","Fruit / feuillage","Culture (sol, exposition)","Taille & entretien","Pollinisation","Usages & conservation"];
+  const secs=ficheManuelle?SECTIONS.filter(s=>ficheManuelle[s]&&ficheManuelle[s].trim()):[];
+  const qr=`${arbre.numero||"?"}-${arbre.nom}(${arbre.variete},${arbre.annee})`;
+  const pollinisateur=arbre.pollinisateur?arbres.find(a=>a.id==arbre.pollinisateur):null;
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",zIndex:1000,padding:"14px 6px"}}>
+    <div style={{width:"100%",maxWidth:640}}><div style={{display:"flex",gap:8,marginBottom:8,justifyContent:"flex-end"}}><button onClick={()=>window.print()} style={{fontSize:13,padding:"6px 13px",borderRadius:8,border:"1px solid #4a7c3f",background:"#4a7c3f",color:"#fff",cursor:"pointer"}}>🖨️ Imprimer</button><button onClick={onClose} style={{fontSize:13,padding:"6px 13px",borderRadius:8,border:"1px solid #d4c9a8",background:"#fff8ee",color:"#2d2a20",cursor:"pointer"}}>✕ Fermer</button></div>
+      <div style={{background:"#fff",color:"#222",fontFamily:"Georgia,serif",padding:"26px 30px",borderRadius:10,border:"1.5px solid #d4c9a8",fontSize:"12.5px",lineHeight:1.65}}>
+        <div style={{borderBottom:`3px solid ${col}`,paddingBottom:12,marginBottom:14,display:"flex",gap:14,alignItems:"flex-start"}}><div style={{flex:1}}><div style={{fontSize:24,fontWeight:700}}>{gvi(arbre.variete)} {arbre.nom}</div><div style={{fontSize:13,color:"#666",fontFamily:"sans-serif"}}>{arbre.variete} · {arbre.annee} · {new Date().getFullYear()-parseInt(arbre.annee)} ans</div><div style={{fontSize:12,color:san.c,fontFamily:"sans-serif"}}>{san.i} {arbre.sante||"Bon"}</div>{arbre.origine&&<div style={{fontSize:12,color:"#666",fontFamily:"sans-serif"}}>Origine : {arbre.origine}</div>}{pollinisateur&&<div style={{fontSize:12,color:"#4a7c3f",fontFamily:"sans-serif"}}>🌸 {pollinisateur.nom}</div>}</div><div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5}}><div style={{fontSize:22,fontWeight:700,color:col}}>#{String(arbre.numero||"—").padStart(3,"0")}</div><QR text={qr} size={68}/></div>{arbre.photo&&<img src={arbre.photo} alt="" style={{width:78,height:78,objectFit:"cover",borderRadius:8,border:"1px solid #ddd"}}/>}</div>
+        {arbre.description&&<div style={{background:"#f5f2eb",borderLeft:`3px solid ${col}`,padding:"8px 12px",marginBottom:14,borderRadius:6}}><div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",marginBottom:3}}>Notes</div><div>{arbre.description}</div></div>}
+        {secs.length>0?secs.map(s=><div key={s} style={{marginBottom:13}}><div style={{display:"flex",alignItems:"center",gap:7,borderBottom:`1.5px solid ${col}44`,paddingBottom:3,marginBottom:5}}><div style={{width:3,height:13,borderRadius:2,background:col,flexShrink:0}}/><div style={{fontSize:9,fontWeight:700,color:col,textTransform:"uppercase",letterSpacing:1.2,fontFamily:"'Playfair Display',Georgia,serif"}}>{s}</div></div><div style={{lineHeight:1.7,whiteSpace:"pre-wrap"}}>{ficheManuelle[s]}</div></div>):<div style={{color:"#bbb",fontStyle:"italic",textAlign:"center",marginTop:20}}>Aucune fiche renseignée.</div>}
+        <div style={{marginTop:20,paddingTop:8,borderTop:"1px solid #e8e0d0",display:"flex",justifyContent:"space-between",fontSize:10,color:"#aaa",fontFamily:"sans-serif"}}><span>Mon Verger</span><span>{new Date().toLocaleDateString("fr-FR")}</span></div>
+      </div>
+    </div>
+  </div>;
+}
+
+
+function Etiquettes({arbres,varietes,onClose,getCol,C}){
+  const [sel,setSel]=useState(arbres.map(a=>a.id));
+  const [zoom,setZoom]=useState(null);
+  const tog=id=>setSel(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
+  const selected=arbres.filter(a=>sel.includes(a.id));
+  const EtiqCard=({a,size="normal"})=>{
+    const col=getCol(a.variete);
+    const qrSize=size==="large"?120:52;
+    const nmSize=size==="large"?20:14;
+    return <div style={{border:`2.5px solid ${col}`,borderRadius:10,padding:size==="large"?"16px 20px":"8px 10px",background:"#faf6ef",display:"flex",flexDirection:"column",gap:size==="large"?10:4}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:size==="large"?13:10,fontFamily:"sans-serif",fontWeight:700,color:col,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>{a.variete}</div>
+          <div style={{fontSize:nmSize,fontWeight:700,lineHeight:1.2,color:"#1a1a1a",wordBreak:"break-word"}}>{a.nom}</div>
+          <div style={{fontSize:size==="large"?13:10,fontFamily:"sans-serif",color:"#888",marginTop:2}}>{a.annee}</div>
+          <div style={{fontSize:size==="large"?16:12,marginTop:size==="large"?6:3}}>{gvi(a.variete)} {SAN[a.sante||"Bon"].i}</div>
+        </div>
+        <div style={{flexShrink:0}}><QR text={(a.numero||"?")+"-"+a.nom+"-"+a.variete} size={qrSize}/></div>
+      </div>
+    </div>;
+  };
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:10}} onClick={zoom!==null?()=>setZoom(null):undefined}>
+    {zoom!==null&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:600,padding:20}} onClick={()=>setZoom(null)}>
+      <div style={{maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
+        <EtiqCard a={arbres.find(a=>a.id===zoom)} size="large"/>
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:12,gap:8}}>
+          <button onClick={()=>setZoom(i=>{const idx=selected.findIndex(a=>a.id===i);return selected[(idx-1+selected.length)%selected.length].id;})} style={{flex:1,fontFamily:"Georgia,serif",fontSize:14,padding:"8px",borderRadius:8,border:"1px solid #555",background:"#222",color:"#fff",cursor:"pointer"}}>‹ Préc.</button>
+          <button onClick={()=>setZoom(null)} style={{flex:1,fontFamily:"Georgia,serif",fontSize:14,padding:"8px",borderRadius:8,border:"1px solid #555",background:"#333",color:"#fff",cursor:"pointer"}}>✕ Fermer</button>
+          <button onClick={()=>setZoom(i=>{const idx=selected.findIndex(a=>a.id===i);return selected[(idx+1)%selected.length].id;})} style={{flex:1,fontFamily:"Georgia,serif",fontSize:14,padding:"8px",borderRadius:8,border:"1px solid #555",background:"#222",color:"#fff",cursor:"pointer"}}>Suiv. ›</button>
+        </div>
+      </div>
+    </div>}
+    <div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:16,width:500,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+      <p style={{fontSize:16,fontWeight:700,margin:"0 0 10px",color:C.txt}}>🏷️ Étiquettes</p>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+        {arbres.map(a=><button key={a.id} onClick={()=>tog(a.id)} style={{fontSize:11,fontFamily:"sans-serif",padding:"3px 9px",borderRadius:7,border:`1px solid ${sel.includes(a.id)?getCol(a.variete):C.border}`,background:sel.includes(a.id)?getCol(a.variete)+"18":C.card,cursor:"pointer",color:C.txt}}>{gvi(a.variete)} #{a.numero||"?"} {a.nom}</button>)}
+      </div>
+      <div style={{background:"#fff",padding:10,border:`1px solid ${C.border}`,borderRadius:8,marginBottom:12}}>
+        <p style={{fontSize:10,color:"#aaa",fontFamily:"sans-serif",marginBottom:8,textAlign:"center"}}>Cliquer sur une étiquette pour l'agrandir</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10}}>
+          {selected.map(a=><div key={a.id} onClick={()=>setZoom(a.id)} style={{cursor:"pointer",transition:"transform .15s,box-shadow .15s"}} onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.03)";e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.13)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}><EtiqCard a={a} size="normal"/></div>)}
+        </div>
+        {selected.length===0&&<p style={{textAlign:"center",color:"#bbb",fontStyle:"italic",fontSize:13,padding:"20px 0"}}>Aucun arbre sélectionné</p>}
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <button onClick={onClose} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer"}}>Fermer</button>
+        <button onClick={()=>window.print()} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.acc}`,background:C.acc,color:"#fff",cursor:"pointer"}}>🖨️ Imprimer</button>
+      </div>
+    </div>
+  </div>;
+}
+
+function Carte({arbres,varietes,marqueurs,carteImg,zones,onSaveM,onSaveI,onSaveZ,C,onFiche,getCol}){
+  const [mode,setMode]=useState("voir");const [sel,setSel]=useState(null);const [tip,setTip]=useState(null);const [cdel,setCdel]=useState(null);
+  const [filtSante,setFiltSante]=useState("Tous");const [scale,setScale]=useState(1);const [offset,setOffset]=useState({x:0,y:0});
+  const [dragging,setDragging]=useState(false);const [dragStart,setDragStart]=useState(null);const [pinchDist,setPinchDist]=useState(null);
+  const [modeZone,setModeZone]=useState(false);const [drawingZone,setDrawingZone]=useState(null);const [zoneCouleur,setZoneCouleur]=useState(ZONE_COLORS[0]);const [zoneNom,setZoneNom]=useState("");const [editZone,setEditZone]=useState(false);
+  const imgRef=useRef();const carteRef=useRef();const carteRef2=useRef();
+  const arbresF=filtSante==="Tous"?arbres:arbres.filter(a=>(a.sante||"Bon")===filtSante);
+  const marqueursF=marqueurs.filter(m=>arbresF.some(a=>a.id===m.arbreId));
+  const getPD=e=>Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+  const onTS=e=>{if(e.touches.length===2){setPinchDist(getPD(e));}else if(e.touches.length===1&&mode==="voir"){setDragging(true);setDragStart({x:e.touches[0].clientX-offset.x,y:e.touches[0].clientY-offset.y});}};
+  const onTM=e=>{if(e.touches.length===2&&pinchDist){e.preventDefault();const d=getPD(e);setScale(s=>Math.min(Math.max(s*(d/pinchDist),.5),5));setPinchDist(d);}else if(e.touches.length===1&&dragging&&dragStart){setOffset({x:e.touches[0].clientX-dragStart.x,y:e.touches[0].clientY-dragStart.y});}};
+  const onTE=()=>{setDragging(false);setPinchDist(null);};
+  const getXY=e=>{const rect=imgRef.current.getBoundingClientRect();return{x:((e.clientX-rect.left)/rect.width)*100,y:((e.clientY-rect.top)/rect.height)*100};};
+  const clickImg=e=>{
+    if(modeZone){const {x,y}=getXY(e);if(!drawingZone){setDrawingZone({x1:x,y1:y,x2:x,y2:y,color:zoneCouleur,nom:zoneNom||"Zone"});}else{onSaveZ([...zones,{...drawingZone,id:Date.now()}]);setDrawingZone(null);setZoneNom("");}return;}
+    if(mode==="voir"||!sel)return;const {x,y}=getXY(e);const idx=marqueurs.findIndex(m=>m.arbreId===sel.id);const upd=idx>=0?marqueurs.map((m,i)=>i===idx?{...m,x,y}:m):[...marqueurs,{id:Date.now(),arbreId:sel.id,x,y}];onSaveM(upd);if(mode==="placer")setSel(null);
+  };
+  const moveImg=e=>{if(modeZone&&drawingZone&&imgRef.current){const {x,y}=getXY(e);setDrawingZone(d=>({...d,x2:x,y2:y}));}};
+  const resetZoom=()=>{setScale(1);setOffset({x:0,y:0});};
+  const btn=(ex)=>({fontSize:12,padding:"4px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",...ex});
+  const VUES=[["liste","☰"],["grille","⊞"],["carte","🗺️"],["rappels","🗓️"],["dashboard","📊"]];
+  return <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+    <div style={{background:C.light,borderBottom:`1px solid ${C.border}`,padding:"7px 12px",display:"flex",gap:7,alignItems:"center",flexWrap:"wrap",flexShrink:0}}>
+      {!modeZone&&[["voir","👁️"],["placer","📍"],["deplacer","✥"]].map(([k,l])=><button key={k} onClick={()=>{setMode(k);if(k!=="placer")setSel(null);}} style={btn({background:mode===k?C.acc:"transparent",color:mode===k?"#fff":C.mut,borderColor:mode===k?C.acc:C.border})}>{l}</button>)}
+      <button onClick={()=>{setModeZone(z=>!z);setDrawingZone(null);}} style={btn({background:modeZone?C.acc:"transparent",color:modeZone?"#fff":C.mut,borderColor:modeZone?C.acc:C.border})}>🗂️ Zones</button>
+      <select value={filtSante} onChange={e=>setFiltSante(e.target.value)} style={{fontSize:11,padding:"3px 6px",border:`1px solid ${C.border}`,borderRadius:7,background:C.card,color:C.txt}}><option>Tous</option>{Object.keys(SAN).map(k=><option key={k}>{k}</option>)}</select>
+      {scale!==1&&<button onClick={resetZoom} style={btn({fontSize:11,padding:"3px 8px"})}>1:1</button>}
+      <div style={{flex:1}}/>
+      <input ref={carteRef} type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;try{onSaveI(await b64(f,1600));}catch(err){console.error(err);}e.target.value="";}} style={{display:"none"}}/>
+      <button onClick={()=>carteRef.current.click()} style={{fontFamily:"Georgia,serif",fontSize:12,padding:"4px 10px",borderRadius:8,border:`1px solid ${C.acc}`,background:C.light,color:C.acc,cursor:"pointer"}}>🖼️ {carteImg?"Changer":"Charger"}</button>
+    </div>
+    {modeZone&&<div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"7px 12px",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",flexShrink:0}}>
+      <span style={{fontSize:11,color:C.mut}}>{drawingZone?"2. Cliquer coin fin":"1. Cliquer coin départ"}</span>
+      <input value={zoneNom} onChange={e=>setZoneNom(e.target.value)} placeholder="Nom zone" style={{fontSize:11,padding:"3px 8px",border:`1px solid ${C.border}`,borderRadius:7,background:C.bg,color:C.txt,width:100}}/>
+      <div style={{display:"flex",gap:4}}>{ZONE_COLORS.map(co=><button key={co} onClick={()=>setZoneCouleur(co)} style={{width:18,height:18,borderRadius:"50%",background:co,border:zoneCouleur===co?"2px solid #fff":"2px solid transparent",cursor:"pointer",outline:zoneCouleur===co?`2px solid ${co}`:"none"}}/>)}</div>
+      {drawingZone&&<button onClick={()=>setDrawingZone(null)} style={btn({fontSize:11,padding:"2px 8px",color:C.dan})}>✕</button>}
+      {zones.length>0&&<button onClick={()=>setEditZone(true)} style={btn({fontSize:11,padding:"2px 8px"})}>⚙️ ({zones.length})</button>}
+    </div>}
+    {mode==="placer"&&!modeZone&&<div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"7px 12px",flexShrink:0}}><p style={{margin:"0 0 5px",fontSize:11,color:C.mut}}>{sel?`📍 Cliquer : ${sel.nom}`:"Sélectionner un arbre"}</p><div style={{display:"flex",gap:5,flexWrap:"wrap",maxHeight:64,overflowY:"auto"}}>{arbres.map(a=>{const col=getCol(a.variete);const pl=marqueurs.some(m=>m.arbreId===a.id);return <button key={a.id} onClick={()=>setSel(a)} style={{fontSize:11,padding:"3px 9px",borderRadius:7,border:`1.5px solid ${sel&&sel.id===a.id?col:C.border}`,background:sel&&sel.id===a.id?col+"22":C.bg,color:sel&&sel.id===a.id?col:C.txt,cursor:"pointer"}}>{pl?"✓ ":""}{gvi(a.variete)} {a.nom}</button>;})}</div></div>}
+    <div style={{flex:1,overflow:"hidden",position:"relative",background:"#1a1a1a",display:"flex",alignItems:"center",justifyContent:"center",touchAction:"none"}} onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}>
+      {!carteImg?<div style={{textAlign:"center",color:"#888",padding:30}}><div style={{fontSize:40,marginBottom:10}}>🛸</div><div style={{fontSize:14,marginBottom:16}}>Aucune photo chargée</div>
+        <input ref={carteRef2} type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;try{onSaveI(await b64(f,1600));}catch(err){console.error(err);}e.target.value="";}} style={{display:"none"}}/>
+        <button onClick={()=>carteRef2.current.click()} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"10px 20px",borderRadius:9,border:`1.5px solid ${C.acc}`,background:C.light,color:C.acc,cursor:"pointer"}}>🖼️ Charger ma photo de drone</button></div>:
+      <div style={{width:"100%",height:"100%",overflow:"hidden",position:"relative"}}><div style={{transform:`scale(${scale}) translate(${offset.x/scale}px,${offset.y/scale}px)`,transformOrigin:"center center",transition:dragging?"none":"transform .1s",position:"relative",width:"100%"}}>
+        <img ref={imgRef} src={carteImg} alt="Carte" onClick={clickImg} onMouseMove={moveImg} style={{display:"block",width:"100%",height:"auto",cursor:modeZone?"crosshair":mode!=="voir"&&sel?"crosshair":"default",userSelect:"none"}} draggable={false}/>
+        <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none"}} viewBox="0 0 100 100" preserveAspectRatio="none">
+          {(zones||[]).map(z=><g key={z.id}><rect x={Math.min(z.x1,z.x2)} y={Math.min(z.y1,z.y2)} width={Math.abs(z.x2-z.x1)} height={Math.abs(z.y2-z.y1)} fill={z.color+"33"} stroke={z.color} strokeWidth=".4" rx=".8"/><text x={(z.x1+z.x2)/2} y={(z.y1+z.y2)/2} textAnchor="middle" dominantBaseline="middle" fontSize="3.5" fill={z.color} fontWeight="bold" style={{fontFamily:"sans-serif"}}>{z.nom}</text></g>)}
+          {drawingZone&&<rect x={Math.min(drawingZone.x1,drawingZone.x2)} y={Math.min(drawingZone.y1,drawingZone.y2)} width={Math.abs(drawingZone.x2-drawingZone.x1)} height={Math.abs(drawingZone.y2-drawingZone.y1)} fill={drawingZone.color+"22"} stroke={drawingZone.color} strokeWidth=".5" strokeDasharray="2,1" rx=".8"/>}
+        </svg>
+        {marqueursF.map(m=>{const arbre=arbres.find(a=>a.id===m.arbreId);if(!arbre)return null;const col=getCol(arbre.variete);const san=SAN[arbre.sante||"Bon"];const sc=san.c;const open=tip&&tip.id===m.id;
+          return <div key={m.id} style={{position:"absolute",left:`${m.x}%`,top:`${m.y}%`,transform:"translate(-50%,-100%)",zIndex:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();if(mode==="voir")setTip(open?null:{id:m.id,arbre});else if(mode==="deplacer")setSel(sel&&sel.id===arbre.id?null:arbre);}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}><div style={{background:col,color:"#fff",borderRadius:"50% 50% 50% 0",width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,border:"2px solid #fff",boxShadow:"0 2px 8px rgba(0,0,0,.5)",transform:"rotate(-45deg)",fontFamily:"sans-serif"}}><span style={{transform:"rotate(45deg)"}}>{arbre.numero||"?"}</span></div><div style={{width:2,height:7,background:col,marginTop:-1}}/></div>
+            <div style={{position:"absolute",top:-5,right:-5,fontSize:9}}>{san.i}</div>
+            {open&&<div style={{position:"absolute",bottom:"110%",left:"50%",transform:"translateX(-50%)",background:C.bg,border:`1.5px solid ${col}`,borderRadius:10,padding:"10px 12px",minWidth:160,boxShadow:"0 4px 20px rgba(0,0,0,.35)",zIndex:20}} onClick={e=>e.stopPropagation()}>
+              {arbre.photo&&<img src={arbre.photo} alt="" style={{width:"100%",height:60,objectFit:"cover",borderRadius:7,marginBottom:7}}/>}
+              <div style={{fontWeight:700,fontSize:13,color:C.txt}}>{gvi(arbre.variete)} {arbre.nom}</div>
+              <div style={{fontSize:11,color:C.mut,marginBottom:8}}>{arbre.variete} · {arbre.annee} · <span style={{color:sc}}>{san.i}</span></div>
+              <div style={{display:"flex",gap:6}}><button style={{...btn(),flex:1,fontSize:11}} onClick={()=>{setTip(null);onFiche(arbre);}}>📋 Fiche</button><button style={{...btn({color:C.dan,borderColor:C.dan+"44"}),fontSize:11}} onClick={()=>setCdel(m)}>🗑️</button></div>
+              <div style={{position:"absolute",bottom:-7,left:"50%",transform:"translateX(-50%)",width:12,height:12,background:C.bg,border:`1.5px solid ${col}`,borderTop:"none",borderLeft:"none",rotate:"45deg"}}/>
+            </div>}
+          </div>;})}
+        {tip&&<div style={{position:"fixed",inset:0,zIndex:9}} onClick={()=>setTip(null)}/>}
+      </div></div>}
+      {carteImg&&<div style={{position:"absolute",bottom:10,right:10,display:"flex",flexDirection:"column",gap:4,zIndex:20}}>
+        <button onClick={()=>setScale(s=>Math.min(s+.3,5))} style={{width:32,height:32,borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+        <button onClick={()=>setScale(s=>Math.max(s-.3,.5))} style={{width:32,height:32,borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+        <button onClick={resetZoom} style={{width:32,height:32,borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center"}}>⊙</button>
+      </div>}
+    </div>
+    {carteImg&&marqueursF.length>0&&<div style={{background:C.card,borderTop:`1px solid ${C.border}`,padding:"5px 12px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}><span style={{fontSize:10,color:C.mut}}>Légende :</span>{[...new Set(marqueursF.map(m=>arbres.find(a=>a.id===m.arbreId)?.variete).filter(Boolean))].map(v=><span key={v} style={{fontSize:11,display:"flex",alignItems:"center",gap:3}}><span style={{width:9,height:9,borderRadius:"50%",background:getCol(v),display:"inline-block"}}/>{gvi(v)} {v}</span>)}<span style={{fontSize:10,color:C.mut,marginLeft:"auto"}}>{marqueursF.length}/{arbres.length} · {Math.round(scale*100)}%</span></div>}
+    {editZone&&<div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}}><div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:18,width:290,maxHeight:"70vh",overflowY:"auto"}}><p style={{fontSize:14,fontWeight:700,margin:"0 0 10px",color:C.txt}}>🗂️ Zones ({zones.length})</p>{zones.map(z=><div key={z.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:7,padding:"6px 10px",background:C.light,borderRadius:8,borderLeft:`3px solid ${z.color}`}}><div style={{width:12,height:12,borderRadius:3,background:z.color}}/><span style={{flex:1,fontSize:13,color:C.txt}}>{z.nom}</span><button onClick={()=>onSaveZ(zones.filter(x=>x.id!==z.id))} style={btn({fontSize:11,padding:"2px 6px",color:C.dan,borderColor:C.dan+"44"})}>✕</button></div>)}<button onClick={()=>setEditZone(false)} style={btn({width:"100%",marginTop:8,textAlign:"center",padding:"6px"})}>Fermer</button></div></div>}
+    {cdel&&<div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}}><div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:18,width:280,textAlign:"center"}}><p style={{fontSize:15,fontWeight:700,margin:"0 0 8px",color:C.txt}}>Supprimer ce marqueur ?</p><p style={{fontSize:13,color:C.mut,margin:"0 0 16px"}}>{arbres.find(a=>a.id===cdel.arbreId)?.nom}</p><div style={{display:"flex",gap:8,justifyContent:"center"}}><button onClick={()=>setCdel(null)} style={{fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer"}}>Annuler</button><button onClick={()=>{onSaveM(marqueurs.filter(m=>m.id!==cdel.id));setCdel(null);setTip(null);}} style={{fontSize:13,padding:"6px 13px",borderRadius:8,background:"#b84040",color:"#fff",border:"none",cursor:"pointer"}}>Supprimer</button></div></div></div>}
+  </div>;
+}
+
+// ════════════════════════════════════════════════════════════
+// LISTE DES ARBRES AVEC DRAG & DROP
+// Drag & drop souris ET tactile pour réordonner manuellement.
+// Modification : onDel remplacé par onAskDel → ouvre le modal
+// de confirmation avant suppression définitive.
+// ════════════════════════════════════════════════════════════
+function ListeDnD({filtered,arbres,journal,recoltes,fiches,marqueurs,C,bsm,getCol,onFiche,onDup,onPrint,onEdit,onAskDel,onReorder,search}){
+  const [order,setOrder]=useState(filtered.map(a=>a.id));
+  const [dragIdx,setDragIdx]=useState(null);
+  const [overIdx,setOverIdx]=useState(null);
+  const dragNode=useRef(null);
+  // Sync quand filtered change (filtre, tri externe)
+  useEffect(()=>{setOrder(filtered.map(a=>a.id));},[filtered.map(a=>a.id).join(",")]);
+  const list=order.map(id=>filtered.find(a=>a.id===id)).filter(Boolean);
+
+  const startDrag=(e,i)=>{
+    e.stopPropagation();
+    setDragIdx(i);
+    dragNode.current=i;
+    if(e.dataTransfer){e.dataTransfer.effectAllowed="move";}
+  };
+  const onDragOver=(e,i)=>{e.preventDefault();if(i!==overIdx)setOverIdx(i);};
+  const onDrop=(e,i)=>{
+    e.preventDefault();
+    if(dragIdx===null||dragIdx===i)return;
+    const n=[...order];const [moved]=n.splice(dragIdx,1);n.splice(i,0,moved);
+    setOrder(n);onReorder(n.map(id=>filtered.find(a=>a.id===id)).filter(Boolean));
+    setDragIdx(null);setOverIdx(null);
+  };
+  const onDragEnd=()=>{setDragIdx(null);setOverIdx(null);};
+
+  // Touch drag
+  const touchStart=useRef(null);const touchIdx=useRef(null);
+  const onTS=(e,i)=>{
+    touchIdx.current=i;
+    touchStart.current={y:e.touches[0].clientY,idx:i};
+  };
+  const onTM=(e)=>{
+    if(touchStart.current===null)return;
+    e.preventDefault();
+    const y=e.touches[0].clientY;
+    const els=document.querySelectorAll(".dnd-item");
+    let over=touchStart.current.idx;
+    els.forEach((el,idx)=>{const r=el.getBoundingClientRect();if(y>=r.top&&y<=r.bottom)over=idx;});
+    if(over!==overIdx){setOverIdx(over);setDragIdx(touchStart.current.idx);}
+  };
+  const onTE=()=>{
+    if(dragIdx!==null&&overIdx!==null&&dragIdx!==overIdx){
+      const n=[...order];const [moved]=n.splice(dragIdx,1);n.splice(overIdx,0,moved);
+      setOrder(n);onReorder(n.map(id=>filtered.find(a=>a.id===id)).filter(Boolean));
+    }
+    setDragIdx(null);setOverIdx(null);touchStart.current=null;
+  };
+
+  if(list.length===0)return <div style={{textAlign:"center",color:C.mut,fontSize:13,padding:"40px 0",fontStyle:"italic"}}>{arbres.length===0?"Aucun arbre encore. Commence par en ajouter un !":"Aucun résultat."}</div>;
+
+  return <>
+    {search&&<div style={{fontSize:11,color:C.mut,fontFamily:"sans-serif",marginBottom:8}}>🔍 {list.length} résultat{list.length!==1?"s":""} pour « {search} »</div>}
+    {!search&&<div style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",marginBottom:6,textAlign:"right"}}>⠿ Glisser pour réordonner</div>}
+    {list.map((a,i)=>{
+      const col=getCol(a.variete);const san=SAN[a.sante||"Bon"];const sc=san.c;
+      const isDragging=dragIdx===i;const isOver=overIdx===i&&dragIdx!==null&&dragIdx!==i;
+      return <div key={a.id} className="dnd-item"
+        draggable onDragStart={e=>startDrag(e,i)} onDragOver={e=>onDragOver(e,i)} onDrop={e=>onDrop(e,i)} onDragEnd={onDragEnd}
+        style={{background:C.card,border:`1px solid ${isOver?C.acc:a.sante==="Malade"?"#b84040":a.sante==="À surveiller"?"#8a6d1e":C.border}`,borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10,marginBottom:7,opacity:isDragging?.4:1,transform:isOver?"translateY(-2px)":"none",boxShadow:isOver?`0 4px 16px ${C.acc}44`:"none",transition:"transform .1s,box-shadow .1s,opacity .1s",cursor:"default"}}>
+        {/* Poignée drag */}
+        <div onMouseDown={e=>e.stopPropagation()} onTouchStart={e=>onTS(e,i)} onTouchMove={onTM} onTouchEnd={onTE}
+          style={{cursor:"grab",color:C.mut,fontSize:16,padding:"0 2px",flexShrink:0,touchAction:"none",userSelect:"none"}}>⠿</div>
+        <div onClick={()=>onFiche(a)} style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0,cursor:"pointer"}}>
+          {a.photo
+            ?<img src={a.photo} alt="" style={{width:52,height:52,objectFit:"cover",borderRadius:9,flexShrink:0,border:`2px solid ${col}44`}}/>
+            :<div style={{width:52,height:52,borderRadius:9,flexShrink:0,background:`linear-gradient(135deg,${col}33,${col}11)`,border:`2px solid ${col}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{gvi(a.variete)}</div>}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:700,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:C.txt}}>{a.nom}</div>
+            <div style={{fontSize:11,color:C.mut,fontFamily:"sans-serif",display:"flex",gap:5,alignItems:"center",flexWrap:"wrap",margin:"2px 0"}}>
+              <span>#{a.numero||"—"}</span>
+              <Badge text={a.variete} color={col}/>
+              <span style={{color:sc}}>{san.i}</span>
+              {a.origine&&<span style={{fontSize:10}}>· {a.origine}</span>}
+              {(journal[a.id]||[]).length>0&&<span>📓</span>}
+              {(recoltes[a.id]||[]).length>0&&<span>🍎</span>}
+              {(a.photos||[]).length>0&&<span>📷</span>}
+              {fiches[a.id]&&<span style={{color:C.acc2}}>🌿</span>}
+              {marqueurs.some(m=>m.arbreId===a.id)&&<span>🗺️</span>}
+              {a.pollinisateur&&<span>🌸</span>}
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
+              <div style={{flex:1,maxWidth:150}}><AgeBar annee={a.annee} color={col}/></div>
+              <span style={{fontSize:10,fontFamily:"sans-serif",background:col+"22",color:col,border:`1px solid ${col}44`,borderRadius:10,padding:"1px 7px",whiteSpace:"nowrap",fontWeight:600}}>{new Date().getFullYear()-parseInt(a.annee)} an{new Date().getFullYear()-parseInt(a.annee)>1?"s":""} 🌳</span>
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:4,flexShrink:0}}>
+          <button onClick={()=>onDup(a)} style={{...bsm(false),padding:"3px 7px"}} title="Dupliquer">⎘</button>
+          <button onClick={()=>onPrint(a)} style={{...bsm(false),padding:"3px 7px"}}>🖨️</button>
+          <button onClick={()=>onEdit(a)} style={{...bsm(false),padding:"3px 7px"}}>✏️</button>
+          <button onClick={()=>onAskDel(a)} style={{...bsm(false),padding:"3px 7px",color:C.dan,borderColor:C.dan+"44"}}>🗑️</button>
+        </div>
+      </div>;
+    })}
+  </>;
+}
+
+function App(){
+  const [arbres,setArbres]=useState([]);const [varietes,setVarietes]=useState(DEFAULT_V);const [fiches,setFiches]=useState({});const [journal,setJournal]=useState({});const [recoltes,setRecoltes]=useState({});const [marqueurs,setMarqueurs]=useState([]);const [carteImg,setCarteImg]=useState(null);const [zones,setZones]=useState([]);
+  const [couleurs,setCouleurs]=useState({});
+  const [theme,setTheme]=useState("Forêt");
+  const [loaded,setLoaded]=useState(false);const [full,setFull]=useState(true);const [vue,setVue]=useState("liste");const [modal,setModal]=useState(null);const [editTarget,setEditTarget]=useState(null);const [fiche,setFiche]=useState(null);const [printT,setPrintT]=useState(null);// confirmDel : arbre en attente de suppression (affiche le modal de confirmation)
+  const [confirmDel,setConfirmDel]=useState(null);
+  const [search,setSearch]=useState("");const [filtreV,setFiltreV]=useState("Toutes");const [filtreS,setFiltreS]=useState("Tous");const [tri,setTri]=useState("variete");
+  const C={...CL,...(THEMES[theme]||{}),dan:CL.dan};
+
+  // Fonction centrale de couleur
+  const getCol=v=>{
+    if(couleurs[v])return couleurs[v];
+    const idx=varietes.indexOf(v);
+    return PAL_DEFAULT[Math.max(idx,0)%PAL_DEFAULT.length];
+  };
+
+  useEffect(()=>{
+    try{const r=storage.get(SK);if(r?.value)setArbres(JSON.parse(r.value));}catch{}
+    try{const r=storage.get(VK);if(r?.value){const saved=JSON.parse(r.value);const merged=[...new Set([...saved,...DEFAULT_V])].sort((a,b)=>a.localeCompare(b,"fr"));setVarietes(merged);storage.set(VK,JSON.stringify(merged));}}catch{}
+    try{const r=storage.get(FK);if(r?.value)setFiches(JSON.parse(r.value));}catch{}
+    try{const r=storage.get(JK);if(r?.value)setJournal(JSON.parse(r.value));}catch{}
+    try{const r=storage.get(RK);if(r?.value)setRecoltes(JSON.parse(r.value));}catch{}
+    try{const r=storage.get(MK);if(r?.value)setMarqueurs(JSON.parse(r.value));}catch{}
+    try{const r=storage.get(IK);if(r?.value)setCarteImg(r.value);}catch{}
+    try{const r=storage.get(COULK);if(r?.value)setCouleurs(JSON.parse(r.value));}catch{}
+    try{const r=storage.get(ZK);if(r?.value)setZones(JSON.parse(r.value));}catch{}
+    try{const r=storage.get(TK);if(r?.value&&THEMES[r.value])setTheme(r.value);}catch{}
+    setLoaded(true);
+  },[]);
+
+  const sA=l=>{setArbres(l);try{storage.set(SK,JSON.stringify(l));}catch{}};
+  const sV=l=>{const s=[...l].sort((a,b)=>a.localeCompare(b,"fr"));setVarietes(s);try{storage.set(VK,JSON.stringify(s));}catch{}};
+  const sF=o=>{setFiches(o);try{storage.set(FK,JSON.stringify(o));}catch{}};
+  const sJ=o=>{setJournal(o);try{storage.set(JK,JSON.stringify(o));}catch{}};
+  const sR=o=>{setRecoltes(o);try{storage.set(RK,JSON.stringify(o));}catch{}};
+  const sM=l=>{setMarqueurs(l);try{storage.set(MK,JSON.stringify(l));}catch{}};
+  const sI=v=>{setCarteImg(v);try{storage.set(IK,v);}catch{}};
+  const sZ=z=>{setZones(z);try{storage.set(ZK,JSON.stringify(z));}catch{}};
+  const sC=o=>{setCouleurs(o);try{storage.set(COULK,JSON.stringify(o));}catch{}};
+  const sT=name=>{setTheme(name);try{storage.set(TK,name);}catch{}};
+
+  const addA=f=>{sA([...arbres,{...f,id:Date.now(),photos:[]}]);setModal(null);};
+  const updA=f=>{sA(arbres.map(a=>a.id===editTarget.id?{...f,id:a.id,photos:a.photos||[]}:a));if(fiche&&fiche.id===editTarget.id)setFiche({...f,id:editTarget.id,photos:fiche.photos||[]});setEditTarget(null);setModal(null);};
+  const delA=id=>{sA(arbres.filter(a=>a.id!==id));if(fiche&&fiche.id===id)setFiche(null);setConfirmDel(null);};
+  const dupA=a=>{sA([...arbres,{...a,id:Date.now(),numero:"",nom:a.nom+" (copie)",photos:[]}]);};
+  const saveJ=(id,e)=>sJ({...journal,[id]:e});const saveR=(id,e)=>sR({...recoltes,[id]:e});
+  const saveP=(id,photos)=>{const u=arbres.map(a=>a.id===id?{...a,photos}:a);sA(u);if(fiche&&fiche.id===id)setFiche(f=>({...f,photos}));};
+  const saveFicheManuelle=(id,data)=>sF({...fiches,[id]:data});
+
+  const expData=()=>{const d={arbres,varietes,fiches,journal,recoltes,marqueurs,couleurs};const blob=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`mon-verger-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);};
+  const impData=async e=>{const f=e.target.files[0];if(!f)return;try{const t=await f.text();const d=JSON.parse(t);if(d.arbres)sA(d.arbres);if(d.varietes)sV(d.varietes);if(d.fiches)sF(d.fiches);if(d.journal)sJ(d.journal);if(d.recoltes)sR(d.recoltes);if(d.marqueurs)sM(d.marqueurs);if(d.couleurs)sC(d.couleurs);setModal(null);}catch{alert("Fichier invalide.");}};
+
+  const filtVars=["Toutes",...varietes];
+  const matchSearch=a=>{const q=search.toLowerCase();if(!q)return true;return[a.nom,a.variete,a.origine,a.description,a.numero+""].some(f=>f&&f.toLowerCase().includes(q))||(journal[a.id]||[]).some(e=>e.texte&&e.texte.toLowerCase().includes(q));};
+  const sortFn=(a,b)=>{if(tri==="nom")return a.nom.localeCompare(b.nom);if(tri==="annee")return parseInt(a.annee)-parseInt(b.annee);if(tri==="annee_desc")return parseInt(b.annee)-parseInt(a.annee);if(tri==="sante"){const o={"Malade":0,"À surveiller":1,"Bon":2};return o[a.sante||"Bon"]-o[b.sante||"Bon"];}return a.variete.localeCompare(b.variete)||a.nom.localeCompare(b.nom);};
+  const filtered=arbres.filter(a=>(filtreV==="Toutes"||a.variete===filtreV)&&(filtreS==="Tous"||(a.sante||"Bon")===filtreS)&&matchSearch(a)).sort(sortFn);
+
+  const [landscape,setLandscape]=useState(window.innerWidth>window.innerHeight&&window.innerWidth<960);
+  const [isMobile,setIsMobile]=useState(window.innerWidth<768);
+  useEffect(()=>{
+    const h=()=>{
+      setLandscape(window.innerWidth>window.innerHeight&&window.innerWidth<960);
+      setIsMobile(window.innerWidth<768);
+    };
+    window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);
+  },[]);
+
+  // ── Splash ──
+  const [splash,setSplash]=useState(true);
+  const [splashOut,setSplashOut]=useState(false);
+  const [gelAlerte,setGelAlerte]=useState(null);
+  const [gelDismissed,setGelDismissed]=useState(false);
+  const closeSplash=()=>{setSplashOut(true);setTimeout(()=>setSplash(false),500);};
+
+  if(!loaded)return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#1a1f16",color:"#e8f0d8",fontFamily:"Georgia,serif",fontSize:16}}>🌳 Chargement…</div>;
+
+  if(splash)return <div style={{position:"fixed",inset:0,background:"#1a1f16",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,transition:"opacity .5s",opacity:splashOut?0:1}}>
+    <div style={{textAlign:"center",maxWidth:400,padding:32}}>
+      <div style={{marginBottom:24}}>
+        <svg width="96" height="96" viewBox="0 0 96 96" style={{filter:"drop-shadow(0 4px 24px #4a7c3f88)"}}>
+          <circle cx="48" cy="80" r="10" fill="#3d2a18"/>
+          <rect x="46" y="44" width="4" height="36" fill="#5a3a20" rx="2"/>
+          <circle cx="48" cy="32" r="20" fill="#4a7c3f" opacity=".95"/>
+          <circle cx="34" cy="38" r="14" fill="#4a7c3f" opacity=".9"/>
+          <circle cx="62" cy="38" r="14" fill="#4a7c3f" opacity=".9"/>
+          <circle cx="36" cy="26" r="12" fill="#5a9248" opacity=".85"/>
+          <circle cx="60" cy="26" r="12" fill="#5a9248" opacity=".85"/>
+          <circle cx="48" cy="18" r="10" fill="#6aaa55" opacity=".9"/>
+          <circle cx="40" cy="36" r="4" fill="#c0392b" opacity=".9"/>
+          <circle cx="56" cy="30" r="3.5" fill="#c0392b" opacity=".85"/>
+        </svg>
+      </div>
+      <p style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:28,fontWeight:700,color:"#e8f0d8",margin:"0 0 8px",letterSpacing:.5}}>Mon Verger</p>
+      <div style={{width:48,height:2,background:"#4a7c3f",margin:"16px auto 20px",borderRadius:2}}/>
+      <p style={{fontFamily:"sans-serif",fontSize:13,color:"#6a8a6a",margin:"0 0 32px",lineHeight:1.6}}>Gérez votre verger, suivez vos arbres,<br/>cultivez la mémoire de votre terre.</p>
+      <button onClick={closeSplash} style={{fontFamily:"Georgia,serif",fontSize:15,padding:"12px 36px",borderRadius:10,border:"none",background:"#4a7c3f",color:"#fff",cursor:"pointer",letterSpacing:.5,boxShadow:"0 4px 20px #4a7c3f66"}}>
+        Entrer dans le verger →
+      </button>
+      <p style={{fontFamily:"sans-serif",fontSize:10,color:"#4a5c4a",margin:"24px 0 0"}}>v16 · © {new Date().getFullYear()} Au Chant des Druides · CC BY-NC 4.0</p>
+    </div>
+  </div>;
+
+  // ── Export PDF fiche ──
+  const exportFichePDF=(arbre)=>{
+    const fiche2=fiches[arbre.id]||{};const col2=getCol(arbre.variete);const san2=SAN[arbre.sante||"Bon"];
+    const SECTIONS2=["Description botanique","Fruit / feuillage","Culture (sol, exposition)","Taille & entretien","Pollinisation","Usages & conservation"];
+    const age2=new Date().getFullYear()-parseInt(arbre.annee);
+    const pollinisateur2=arbre.pollinisateur?arbres.find(a=>a.id==arbre.pollinisateur):null;
+    const secs2=SECTIONS2.filter(s=>fiche2[s]&&fiche2[s].trim());
+    const esc=s=>(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const qrText=(arbre.numero?"#"+arbre.numero+" ":"")+arbre.nom+" ("+arbre.variete+" "+arbre.annee+")";
+    const qrUrl="https://api.qrserver.com/v1/create-qr-code/?size=88x88&data="+encodeURIComponent(qrText);
+    const secHtml=secs2.length>0?secs2.map(s=>"<div style='margin-bottom:16px;page-break-inside:avoid;'><div style='display:flex;align-items:center;gap:8px;margin-bottom:6px;border-bottom:1.5px solid "+col2+"55;padding-bottom:4px;'><div style='width:3px;height:14px;background:"+col2+";border-radius:2px;flex-shrink:0;'></div><div style='font-size:9px;font-weight:700;color:"+col2+";text-transform:uppercase;letter-spacing:1.5px;font-family:Arial,sans-serif;'>"+esc(s)+"</div></div><div style='font-size:13px;line-height:1.8;white-space:pre-wrap;color:#2d2010;padding-left:11px;'>"+esc(fiche2[s])+"</div></div>").join(""):"<p style='color:#bbb;font-style:italic;text-align:center;padding:20px 0;'>Aucune fiche renseignée.</p>";
+    const html="<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'/><title>Fiche — "+esc(arbre.nom)+"</title>"
+      +"<style>*{box-sizing:border-box;margin:0;padding:0;}body{background:#fdf8f0;font-family:Georgia,serif;padding:32px 40px;color:#2d2010;max-width:700px;margin:0 auto;}"
+      +"@page{margin:.8cm;size:A4 portrait;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>"
+      +"<div style='font-family:Georgia,serif;background:#fdf8f0;color:#2d2010;'>"
+      +"<div style='border-bottom:3px double "+col2+";padding-bottom:16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;'>"
+        +"<div style='flex:1;'><div style='font-size:28px;font-weight:700;margin-bottom:4px;'>"+esc(arbre.nom)+"</div>"
+        +"<div style='font-size:13px;color:#7a6050;font-style:italic;margin-bottom:8px;'>"+esc(arbre.variete)+" · Planté en "+arbre.annee+" · "+age2+" an"+(age2>1?"s":"")+"</div>"
+        +"<div style='display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:4px;'>"
+          +"<span style='background:"+col2+"22;color:"+col2+";border:1px solid "+col2+"55;border-radius:12px;padding:2px 12px;font-size:11px;font-family:Arial,sans-serif;font-weight:600;'>"+esc(arbre.variete)+"</span>"
+          +"<span style='font-size:12px;color:"+san2.c+";'>"+san2.i+" "+(arbre.sante||"Bon")+"</span>"
+        +"</div>"
+        +(pollinisateur2?"<div style='font-size:12px;color:#4a7c3f;margin-top:6px;font-style:italic;'>🌸 Pollinisateur : "+esc(pollinisateur2.nom)+" ("+esc(pollinisateur2.variete)+")</div>":"")
+        +"</div>"
+        +"<div style='display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;'>"
+          +"<div style='font-size:28px;font-weight:700;color:"+col2+";'>#"+String(arbre.numero||"?").padStart(3,"0")+"</div>"
+          +"<img src='"+qrUrl+"' width='88' height='88' style='border-radius:4px;border:1px solid #d4c090;' alt='QR'/>"
+        +"</div>"
+        +(arbre.photo?"<img src='"+arbre.photo+"' style='width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid "+col2+"44;flex-shrink:0;' alt=''/>":"")
+      +"</div>"
+      +(arbre.description?"<div style='background:#f5f0e8;border-left:4px solid "+col2+";padding:10px 14px;margin-bottom:18px;border-radius:0 6px 6px 0;font-size:13px;line-height:1.6;'><strong>Notes :</strong> "+esc(arbre.description)+"</div>":"")
+      +"<div style='text-align:center;color:"+col2+";font-size:20px;margin:14px 0;'>❧</div>"
+      +secHtml
+      +"<div style='margin-top:28px;padding-top:10px;border-top:1px solid "+col2+"44;display:flex;justify-content:space-between;font-size:10px;color:#aaa;font-family:Arial,sans-serif;'>"
+        +"<span>Mon Verger · Au Chant des Druides</span><span>"+new Date().toLocaleDateString("fr-FR")+"</span>"
+      +"</div></div>"
+      +"<script>window.onload=function(){setTimeout(function(){window.print();},400);}<\/script></body></html>";
+    const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}
+  };
+
+  const VUES_NAV=[
+    ["dashboard","📊","Tableau"],
+    ["liste","☰","Liste"],
+    ["grille","⊞","Grille"],
+    ["carte","🗺️","Carte"],
+    ["rappels","🗓️","Rappels"],
+  ];
+  const bsm=(ac)=>({fontFamily:"Georgia,serif",fontSize:12,padding:"3px 8px",borderRadius:8,border:`1px solid ${ac?C.acc:C.border}`,background:ac?C.acc:C.card,color:ac?"#fff":C.txt,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:4});
+  const inp={fontFamily:"Georgia,serif",fontSize:12,padding:"5px 9px",border:`1px solid ${C.border}`,borderRadius:8,background:C.card,color:C.txt};
+  const nbMalades=arbres.filter(a=>a.sante==="Malade").length;
+
+  return <div style={{fontFamily:"Georgia,serif",background:C.bg,color:C.txt,border:`1.5px solid ${C.border}`,borderRadius:14,overflow:"hidden",display:"flex",flexDirection:isMobile?"column":"row",width:"100%",minHeight:"100vh",position:"relative",transition:"background .3s"}}>
+
+    {/* ── SIDEBAR GAUCHE — desktop uniquement ── */}
+    {!isMobile&&<div style={{width:72,background:C.tbg,display:"flex",flexDirection:"column",alignItems:"center",padding:"14px 0",gap:4,flexShrink:0,borderRight:"1px solid rgba(255,255,255,.08)"}}>
+      <button onClick={()=>{setSplashOut(false);setSplash(true);}} title="Accueil" style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"4px",borderRadius:8,marginBottom:8}}>
+        <span style={{fontSize:24}}>🌳</span>
+        <span style={{fontSize:9,color:C.tsub,fontFamily:"sans-serif"}}>{arbres.length} arbre{arbres.length!==1?"s":""}</span>
+      </button>
+      {VUES_NAV.map(([k,ic,label])=>{const active=vue===k;return <button key={k} onClick={()=>setVue(k)} title={label}
+        style={{width:52,height:52,borderRadius:10,border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,background:active?"rgba(255,255,255,.2)":"transparent",transition:"background .15s"}}>
+        <span style={{fontSize:20,lineHeight:1}}>{ic}</span>
+        <span style={{fontSize:8,fontFamily:"sans-serif",color:active?"#fff":C.tsub,fontWeight:active?700:400}}>{label}</span>
+      </button>;})}
+      <div style={{width:36,height:1,background:"rgba(255,255,255,.15)",margin:"6px 0"}}/>
+      {[{ic:"📋",lb:"Récap",fn:()=>setModal("recap")},{ic:"🏷️",lb:"Étiq.",fn:()=>setModal("etiq")},{ic:"💾",lb:"Export",fn:()=>setModal("io")},{ic:"🎨",lb:"Thème",fn:()=>setModal("theme")},{ic:"⛶",lb:"Plein",fn:()=>{const el=document.documentElement;if(!document.fullscreenElement){el.requestFullscreen&&el.requestFullscreen();}else{document.exitFullscreen&&document.exitFullscreen();}}}].map(({ic,lb,fn})=><button key={lb} onClick={fn} title={lb}
+        style={{width:52,height:52,borderRadius:10,border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,background:"transparent",transition:"background .15s"}}
+        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,.12)"}
+        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+        <span style={{fontSize:18}}>{ic}</span>
+        <span style={{fontSize:8,fontFamily:"sans-serif",color:C.tsub}}>{lb}</span>
+      </button>)}
+      {nbMalades>0&&<div style={{background:"#b84040",borderRadius:8,padding:"3px 6px",marginTop:4,textAlign:"center"}}><span style={{fontSize:10,color:"#fff",fontWeight:700}}>🔴 {nbMalades}</span></div>}
+      <div style={{flex:1}}/>
+      <button onClick={()=>{setEditTarget(null);setModal("arbre");}} title="Ajouter un arbre"
+        style={{width:46,height:46,borderRadius:"50%",background:C.acc,color:"#fff",border:"none",fontSize:22,cursor:"pointer",boxShadow:`0 4px 12px ${C.acc}88`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:10,transition:"transform .15s"}}
+        onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1)"}
+        onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>＋</button>
+    </div>}
+
+    {/* ── ZONE DROITE ── */}
+    <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,overflow:"hidden"}}>
+
+      {/* Barre titre mobile */}
+      {isMobile&&<div style={{background:C.tbg,padding:"10px 14px",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+        <button onClick={()=>{setSplashOut(false);setSplash(true);}} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
+          <span style={{fontSize:16,color:C.tsub}}>🌳</span>
+          <span style={{fontSize:20,fontWeight:400,color:"#fff",fontFamily:"'Satisfy',cursive",letterSpacing:.5,textShadow:"0 1px 4px rgba(0,0,0,.2)"}}>Mon Verger</span>
+        </button>
+        <span style={{fontSize:11,color:C.tsub,fontFamily:"sans-serif"}}>{arbres.length} arbre{arbres.length!==1?"s":""}</span>
+        {nbMalades>0&&<span style={{fontSize:11,background:"#b84040",color:"#fff",borderRadius:10,padding:"1px 7px",fontFamily:"sans-serif",fontWeight:700}}>🔴 {nbMalades}</span>}
+        <button onClick={()=>setModal("theme")} style={{background:"none",border:"none",cursor:"pointer",color:C.tsub,padding:"2px 4px",fontSize:14}}>🎨</button>
+        <button onClick={()=>{const el=document.documentElement;if(!document.fullscreenElement){el.requestFullscreen&&el.requestFullscreen();}else{document.exitFullscreen&&document.exitFullscreen();}}} style={{background:"none",border:"none",cursor:"pointer",color:C.tsub,padding:"2px 4px",fontSize:16}}>⛶</button>
+        <button onClick={()=>setModal("recap")} style={{background:"none",border:"none",cursor:"pointer",color:C.tsub,padding:"2px 4px",fontSize:14}}>📋</button>
+        <button onClick={()=>setModal("etiq")} style={{background:"none",border:"none",cursor:"pointer",color:C.tsub,padding:"2px 4px",fontSize:14}}>🏷️</button>
+        <button onClick={()=>setModal("io")} style={{background:"none",border:"none",cursor:"pointer",color:C.tsub,padding:"2px 4px",fontSize:14}}>💾</button>
+      </div>}
+
+      {/* Barre titre PC */}
+      {!isMobile&&<div style={{background:C.tbg,padding:"8px 16px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+        <button onClick={()=>{setSplashOut(false);setSplash(true);}} style={{background:"none",border:"none",cursor:"pointer",padding:0,flex:1,textAlign:"left"}}><span style={{fontSize:22,fontWeight:400,color:"#fff",fontFamily:"'Satisfy',cursive",letterSpacing:.5,textShadow:"0 1px 4px rgba(0,0,0,.2)"}}>Mon Verger</span></button>
+        <span style={{fontSize:12,color:C.tsub,fontFamily:"sans-serif",fontStyle:"italic",opacity:.8}}>{VUES_NAV.find(([k])=>k===vue)?.[2]||""}</span>
+      </div>}
+
+      {/* Barre outils filtres */}
+      {(vue==="liste"||vue==="grille")&&<div style={{background:C.light,borderBottom:`1px solid ${C.border}`,padding:"8px 12px",display:"flex",gap:6,alignItems:"flex-end",flexWrap:"wrap",flexShrink:0}}>
+        <div style={{display:"flex",flexDirection:"column",gap:1}}><span style={{fontSize:9,color:C.mut,fontFamily:"sans-serif"}}>Recherche</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Rechercher…" style={{...inp,width:110}}/></div>
+        {vue==="liste"&&<>
+          <div style={{display:"flex",flexDirection:"column",gap:1}}><span style={{fontSize:9,color:C.mut,fontFamily:"sans-serif"}}>Variété</span><select value={filtreV} onChange={e=>setFiltreV(e.target.value)} style={{...inp,width:"auto"}}>{filtVars.map(v=><option key={v}>{v}</option>)}</select></div>
+          <div style={{display:"flex",flexDirection:"column",gap:1}}><span style={{fontSize:9,color:C.mut,fontFamily:"sans-serif"}}>Santé</span><select value={filtreS} onChange={e=>setFiltreS(e.target.value)} style={{...inp,width:"auto"}}><option>Tous</option>{Object.keys(SAN).map(k=><option key={k}>{k}</option>)}</select></div>
+          <div style={{display:"flex",flexDirection:"column",gap:1}}><span style={{fontSize:9,color:C.mut,fontFamily:"sans-serif"}}>Tri</span><select value={tri} onChange={e=>setTri(e.target.value)} style={{...inp,width:"auto"}}><option value="variete">Variété</option><option value="nom">Nom A→Z</option><option value="annee">Année ↑</option><option value="annee_desc">Année ↓</option><option value="sante">Santé</option></select></div>
+        </>}
+        <div style={{flex:1}}/>
+        <div style={{display:"flex",gap:2,background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:2}}>
+          <button onClick={()=>setModal("var")} style={{background:"transparent",color:C.mut,border:"none",borderRadius:6,padding:"3px 9px",cursor:"pointer",fontSize:13}} title="Gérer les variétés">⚙️</button>
+          <button onClick={()=>setModal("couleurs")} style={{background:"transparent",color:C.mut,border:"none",borderRadius:6,padding:"3px 9px",cursor:"pointer",fontSize:13}} title="Couleurs des variétés">🌈</button>
+        </div>
+      </div>}
+
+      {/* ── Bandeau alerte gel ── */}
+      {gelAlerte&&!gelDismissed&&<div style={{background:"#1a3a6a18",borderBottom:"1.5px solid #4a7abf55",padding:"8px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+        <span style={{fontSize:18,flexShrink:0}}>🧊</span>
+        <div style={{flex:1,minWidth:0}}>
+          <span style={{fontSize:12,fontWeight:700,color:"#4a7abf",fontFamily:"sans-serif"}}>Risque de gel · </span>
+          <span style={{fontSize:12,color:"#4a7abf",fontFamily:"sans-serif"}}>{gelAlerte[0].date} : {gelAlerte[0].t}°C</span>
+        </div>
+        <button onClick={()=>setVue("rappels")} style={{fontSize:11,fontFamily:"sans-serif",padding:"3px 9px",borderRadius:7,border:"1px solid #4a7abf44",background:"#4a7abf22",color:"#4a7abf",cursor:"pointer",flexShrink:0}}>Météo →</button>
+        <button onClick={()=>setGelDismissed(true)} style={{background:"none",border:"none",cursor:"pointer",color:"#4a7abf",fontSize:16,padding:"0 2px",flexShrink:0}}>×</button>
+      </div>}
+
+      {/* Corps principal */}
+      <div style={{flex:1,overflowY:"auto",padding:vue==="carte"?"0":`12px 14px ${isMobile?"80px":"16px"}`}}>
+        {vue==="dashboard"&&<Dashboard arbres={arbres} varietes={varietes} recoltes={recoltes} journal={journal} C={C} onFiche={a=>setFiche(a)} getCol={getCol} onFiltreVariete={v=>{setFiltreV(v);setVue("liste");}} onGel={g=>{setGelAlerte(g);setGelDismissed(false);}}/>}
+        {vue==="rappels"&&<Rappels arbres={arbres} C={C} onGel={g=>{setGelAlerte(g);setGelDismissed(false);}}/>}
+        {vue==="liste"&&<ListeDnD filtered={filtered} arbres={arbres} journal={journal} recoltes={recoltes} fiches={fiches} marqueurs={marqueurs} C={C} bsm={bsm} getCol={getCol} onFiche={a=>setFiche(a)} onDup={dupA} onPrint={a=>exportFichePDF(a)} onEdit={a=>{setEditTarget(a);setModal("arbre");}} onAskDel={a=>setConfirmDel(a)} onReorder={newOrder=>{const ids=newOrder.map(a=>a.id);const reste=arbres.filter(a=>!ids.includes(a.id));sA([...newOrder,...reste]);}} search={search}/>}
+        {vue==="grille"&&<>
+          {filtered.length===0&&<div style={{textAlign:"center",color:C.mut,fontSize:13,padding:"40px 0",fontStyle:"italic"}}>{arbres.length===0?"Aucun arbre encore.":"Aucun résultat."}</div>}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10}}>
+            {filtered.map(a=>{const col=getCol(a.variete);const san=SAN[a.sante||"Bon"];const sc=san.c;return(
+              <div key={a.id} onClick={()=>setFiche(a)} style={{background:C.card,border:`1px solid ${a.sante==="Malade"?"#b84040":a.sante==="À surveiller"?"#8a6d1e":C.border}`,borderRadius:12,overflow:"hidden",cursor:"pointer"}}>
+                {a.photo?<img src={a.photo} alt="" style={{width:"100%",height:90,objectFit:"cover"}}/>:<div style={{width:"100%",height:90,background:`linear-gradient(135deg,${col}33,${col}11)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:36}}>{gvi(a.variete)}</div>}
+                <div style={{padding:"8px 10px"}}>
+                  <div style={{fontWeight:700,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:C.txt}}>{a.nom}</div>
+                  <div style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",marginBottom:4}}>#{a.numero||"—"}</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><Badge text={a.variete} color={col}/><span style={{color:sc}}>{san.i}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:4}}>
+                    <div style={{flex:1,marginRight:6}}><AgeBar annee={a.annee} color={col}/></div>
+                    <span style={{fontSize:9,fontFamily:"sans-serif",background:col+"22",color:col,border:`1px solid ${col}44`,borderRadius:8,padding:"1px 5px",whiteSpace:"nowrap",fontWeight:600}}>{new Date().getFullYear()-parseInt(a.annee)}a 🌳</span>
+                  </div>
+                </div>
+              </div>
+            );})}
+          </div>
+        </>}
+        {vue==="carte"&&<Carte arbres={arbres} varietes={varietes} marqueurs={marqueurs} carteImg={carteImg} zones={zones} onSaveM={sM} onSaveI={sI} onSaveZ={sZ} C={C} onFiche={a=>setFiche(a)} getCol={getCol}/>}
+      </div>
+
+      {/* Bouton + flottant mobile */}
+      {isMobile&&vue!=="carte"&&<button onClick={()=>{setEditTarget(null);setModal("arbre");}}
+        style={{position:"fixed",bottom:74,right:16,width:52,height:52,borderRadius:"50%",background:C.acc,color:"#fff",border:"none",fontSize:26,cursor:"pointer",boxShadow:`0 4px 16px ${C.acc}88`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,transition:"transform .15s"}}
+        onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1)"}
+        onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
+        title="Ajouter un arbre">＋</button>}
+
+      {/* Barre navigation mobile */}
+      {isMobile&&<div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:1200,background:C.card,borderTop:`1.5px solid ${C.border}`,display:"flex",zIndex:100,boxShadow:"0 -2px 12px rgba(0,0,0,.10)"}}>
+        {VUES_NAV.map(([k,ic,label])=>{const active=vue===k;return <button key={k} onClick={()=>setVue(k)} style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"8px 0 6px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`2px solid ${active?C.acc:"transparent"}`}}>
+          <span style={{fontSize:18,lineHeight:1}}>{ic}</span>
+          <span style={{fontSize:9,fontFamily:"sans-serif",color:active?C.acc:C.mut,fontWeight:active?700:400}}>{label}</span>
+        </button>;})}
+      </div>}
+
+      {/* Footer */}
+      <div style={{borderTop:`1px solid ${C.border}`,padding:`8px 14px ${isMobile?"64px":"8px"}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,background:C.card}}>
+        <span style={{fontSize:10,color:C.mut,fontFamily:"sans-serif"}}>© 2025 Au Chant des Druides · Mon Verger</span>
+        <a href="https://creativecommons.org/licenses/by-nc/4.0/deed.fr" target="_blank" rel="noreferrer"
+          style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",textDecoration:"none",display:"flex",alignItems:"center",gap:4,opacity:.8}}>
+          <span style={{background:C.light,border:`1px solid ${C.border}`,borderRadius:4,padding:"1px 5px",fontSize:9,fontWeight:700,letterSpacing:.3}}>CC BY-NC 4.0</span>
+          <span>Usage non commercial</span>
+        </a>
+      </div>
+
+    </div>{/* fin zone droite */}
+
+    {/* ── Modaux ── */}
+    {modal==="theme"&&<ThemeModal theme={theme} onSave={name=>{sT(name);setModal(null);}} onClose={()=>setModal(null)} C={C}/>}
+    {modal==="couleurs"&&<CouleurModal varietes={varietes} couleurs={couleurs} vIndex={v=>varietes.indexOf(v)} onSave={co=>{sC(co);setModal(null);}} onClose={()=>setModal(null)} C={C}/>}
+    {modal==="io"&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:10}}><div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:18,width:320,maxWidth:"100%"}}><p style={{fontSize:16,fontWeight:700,margin:"0 0 10px",color:C.txt}}>💾 Sauvegarde</p><div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}><button onClick={expData} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"8px",borderRadius:8,border:`1px solid ${C.acc}`,background:C.acc,color:"#fff",cursor:"pointer",textAlign:"center"}}>⬇️ Exporter (.json)</button><div><p style={{fontSize:12,color:C.mut,margin:"0 0 5px",fontFamily:"sans-serif"}}>⬆️ Importer</p><input type="file" accept=".json" onChange={impData} style={{display:"block",width:"100%",fontSize:14,padding:"8px 4px",color:C.txt,background:C.card,border:`1px solid ${C.border}`,borderRadius:8}}/></div></div><div style={{display:"flex",justifyContent:"flex-end"}}><button onClick={()=>setModal(null)} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer"}}>Fermer</button></div></div></div>}
+    {modal==="arbre"&&<TreeForm initial={editTarget} varietes={varietes} arbres={arbres} onSave={editTarget?updA:addA} onClose={()=>{setModal(null);setEditTarget(null);}} C={C}/>}
+    {modal==="var"&&<VarForm varietes={varietes} onSave={l=>{sV(l);setModal(null);if(!l.includes(filtreV))setFiltreV("Toutes");}} onClose={()=>setModal(null)} C={C}/>}
+    {modal==="etiq"&&<Etiquettes arbres={arbres} varietes={varietes} onClose={()=>setModal(null)} getCol={getCol} C={C}/>}
+    {modal==="recap"&&<FicheVerger arbres={arbres} varietes={varietes} recoltes={recoltes} onClose={()=>setModal(null)} getCol={getCol} C={C}/>}
+    {fiche&&!printT&&<FicheDetail arbre={fiche} ficheManuelle={fiches[fiche.id]||null} journal={journal} recoltes={recoltes} varietes={varietes} arbres={arbres} onMod={()=>{setEditTarget(fiche);setModal("arbre");setFiche(null);}} onPrint={()=>exportFichePDF(fiche)} onClose={()=>setFiche(null)} onSaveJ={saveJ} onSaveR={saveR} onSaveP={saveP} onSaveFiche={saveFicheManuelle} C={C} getCol={getCol} allArbres={arbres} onSwipe={dir=>{const i=arbres.findIndex(a=>a.id===fiche.id);const next=arbres[i+(dir==="left"?1:-1)];if(next)setFiche(next);}}/>}
+    {printT&&<FicheImp arbre={printT} ficheManuelle={fiches[printT.id]||null} varietes={varietes} arbres={arbres} onClose={()=>setPrintT(null)} getCol={getCol}/>}
+    {confirmDel&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:12}}>
+      <div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:22,width:310,maxWidth:"100%",textAlign:"center"}}>
+        <div style={{fontSize:36,marginBottom:10}}>🗑️</div>
+        <p style={{fontSize:16,fontWeight:700,color:C.txt,margin:"0 0 6px"}}>Supprimer cet arbre ?</p>
+        <p style={{fontSize:14,color:C.mut,margin:"0 0 6px",fontFamily:"sans-serif"}}>{gvi(confirmDel.variete)} <strong>{confirmDel.nom}</strong></p>
+        <p style={{fontSize:12,color:C.dan,fontFamily:"sans-serif",margin:"0 0 20px"}}>Cette action est irréversible.</p>
+        <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+          <button onClick={()=>setConfirmDel(null)} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"8px 18px",borderRadius:9,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",flex:1}}>Annuler</button>
+          <button onClick={()=>delA(confirmDel.id)} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"8px 18px",borderRadius:9,border:"none",background:C.dan,color:"#fff",cursor:"pointer",flex:1,fontWeight:700}}>Supprimer</button>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+<script>
+  // Enregistrement du Service Worker pour le mode hors-ligne
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(err => {
+        console.warn("Service Worker non enregistré :", err);
+      });
+    });
+  }
+</script>
+</body>
+</html>
