@@ -403,6 +403,71 @@ function FicheVerger({arbres,varietes,recoltes,onClose,getCol,C}){
   </div>;
 }
 
+function VarForm({varietes,onSave,onClose,C}){
+  const [list,setList]=useState([...varietes]);const [nv,setNv]=useState("");
+  const add=()=>{const v=nv.trim();if(v&&!list.includes(v)){setList([...list,v].sort((a,b)=>a.localeCompare(b,"fr")));setNv("");}};
+  const inp={fontSize:13,padding:"7px 10px",border:`1px solid ${C.border}`,borderRadius:8,background:C.card,color:C.txt};
+  const btn=(ex)=>({fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",...ex});
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:10}}>
+    <div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:18,width:340,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+      <p style={{fontSize:16,fontWeight:700,margin:"0 0 14px",color:C.txt}}>Gérer les variétés</p>
+      <div style={{maxHeight:200,overflowY:"auto",marginBottom:12,display:"flex",flexDirection:"column",gap:5}}>{list.map(v=><div key={v} style={{display:"flex",alignItems:"center",background:C.light,borderRadius:7,padding:"5px 10px",gap:8}}><span style={{fontSize:16}}>{gvi(v)}</span><span style={{flex:1,fontSize:13,color:C.txt}}>{v}</span><button onClick={()=>setList(list.filter(x=>x!==v))} style={{...btn(),padding:"2px 8px",color:C.dan,borderColor:C.dan+"44"}}>✕</button></div>)}</div>
+      <div style={{display:"flex",gap:8,marginBottom:14}}><input value={nv} onChange={e=>setNv(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Nouvelle variété…" style={{...inp,flex:1}}/><button onClick={add} style={btn({background:C.acc,color:"#fff",borderColor:C.acc})}>+</button></div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={onClose} style={btn()}>Annuler</button><button onClick={()=>onSave(list)} style={btn({background:C.acc,color:"#fff",borderColor:C.acc})}>Enregistrer</button></div>
+    </div>
+  </div>;
+}
+
+const SITES_DEFAULT=[
+  {id:1,nom:"mesarbustes.fr",emoji:"🌿",url:"https://www.mesarbustes.fr/recherche?q={q}"},
+  {id:2,nom:"gerbeaud.com",emoji:"🌸",url:"https://www.gerbeaud.com/recherche?q={q}"},
+];
+const SK_SITES="verger-sites-recherche";
+
+// ════════════════════════════════════════════════════════════
+// CONFIGURATION IA
+// Clés API stockées localement (jamais partagées).
+// Chaque utilisateur doit saisir sa propre clé.
+// Modèles supportés : Claude (Anthropic), GPT-4 (OpenAI), Gemini (Google)
+// ════════════════════════════════════════════════════════════
+const IA_KEY="verger-ia-config"; // clé localStorage pour config IA
+const IA_PROVIDERS={
+  claude:{
+    nom:"Claude",emoji:"✨",color:"#c77c3c",
+    url:"https://api.anthropic.com/v1/messages",
+    models:["claude-haiku-4-5-20251001","claude-sonnet-4-6"],
+    modelDefault:"claude-haiku-4-5-20251001",
+    doc:"https://console.anthropic.com/",
+    gratuit:"Gratuit avec crédit offert"
+  },
+  openai:{
+    nom:"GPT-4",emoji:"🤖",color:"#10a37f",
+    url:"https://api.openai.com/v1/chat/completions",
+    models:["gpt-4o-mini","gpt-4o"],
+    modelDefault:"gpt-4o-mini",
+    doc:"https://platform.openai.com/api-keys",
+    gratuit:"Crédit offert au départ"
+  },
+  gemini:{
+    nom:"Gemini",emoji:"💎",color:"#4285f4",
+    url:"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+    models:["gemini-1.5-flash","gemini-1.5-pro"],
+    modelDefault:"gemini-1.5-flash",
+    doc:"https://aistudio.google.com/app/apikey",
+    gratuit:"Plan gratuit disponible"
+  },
+};
+
+
+// ════════════════════════════════════════════════════════════
+// FICHE DÉTAIL D'UN ARBRE (modal principal)
+// Onglets : 🌿 Info/fiche | 📷 Galerie | 📓 Journal | 🍎 Récoltes
+// Nouvelles fonctionnalités :
+//   - Swipe tactile gauche/droite pour passer à l'arbre suivant/précédent
+//   - Flèches ‹ › et indicateur "N / Total" en haut du modal
+//   - allArbres : liste complète pour la navigation
+//   - onSwipe("left"|"right") : callback vers App pour changer l'arbre
+// ════════════════════════════════════════════════════════════
 function TreeForm({initial,varietes,arbres,onSave,onClose,C}){
   const [form,setForm]=useState(initial||{numero:"",nom:"",variete:varietes[0]||"",annee:new Date().getFullYear(),description:"",sante:"Bon",photo:"",photos:[],origine:"Pépinière",dateAchat:"",pollinisateur:""});
   const sf=(k,v)=>setForm(f=>({...f,[k]:v}));
@@ -416,12 +481,6 @@ function TreeForm({initial,varietes,arbres,onSave,onClose,C}){
   const [sites,setSites]=useState(()=>{try{const r=localStorage.getItem(SK_SITES);return r?JSON.parse(r):SITES_DEFAULT;}catch{return SITES_DEFAULT;}});
   const [editSites,setEditSites]=useState(false);
   const [newSite,setNewSite]=useState({nom:"",emoji:"🔗",url:""});
-  // IA
-  const [iaConfig,setIaConfig]=useState(()=>{try{const r=localStorage.getItem(IA_KEY);return r?JSON.parse(r):{provider:"claude",key:"",model:"claude-haiku-4-5-20251001"};}catch{return {provider:"claude",key:"",model:"claude-haiku-4-5-20251001"};}});
-  const [iaLoad,setIaLoad]=useState(false);
-  const [iaErr,setIaErr]=useState(null);
-  const [showIaConfig,setShowIaConfig]=useState(false);
-  const saveIaConfig=cfg=>{setIaConfig(cfg);try{localStorage.setItem(IA_KEY,JSON.stringify(cfg));}catch{}};
 
   // Sync wikiQuery avec le nom de l'arbre saisi
   useEffect(()=>{if(form.nom&&!wikiQuery)setWikiQuery(form.nom);},[form.nom]);
@@ -552,71 +611,6 @@ function TreeForm({initial,varietes,arbres,onSave,onClose,C}){
   </div>;
 }
 
-function VarForm({varietes,onSave,onClose,C}){
-  const [list,setList]=useState([...varietes]);const [nv,setNv]=useState("");
-  const add=()=>{const v=nv.trim();if(v&&!list.includes(v)){setList([...list,v].sort((a,b)=>a.localeCompare(b,"fr")));setNv("");}};
-  const inp={fontSize:13,padding:"7px 10px",border:`1px solid ${C.border}`,borderRadius:8,background:C.card,color:C.txt};
-  const btn=(ex)=>({fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer",...ex});
-  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:10}}>
-    <div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:18,width:340,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
-      <p style={{fontSize:16,fontWeight:700,margin:"0 0 14px",color:C.txt}}>Gérer les variétés</p>
-      <div style={{maxHeight:200,overflowY:"auto",marginBottom:12,display:"flex",flexDirection:"column",gap:5}}>{list.map(v=><div key={v} style={{display:"flex",alignItems:"center",background:C.light,borderRadius:7,padding:"5px 10px",gap:8}}><span style={{fontSize:16}}>{gvi(v)}</span><span style={{flex:1,fontSize:13,color:C.txt}}>{v}</span><button onClick={()=>setList(list.filter(x=>x!==v))} style={{...btn(),padding:"2px 8px",color:C.dan,borderColor:C.dan+"44"}}>✕</button></div>)}</div>
-      <div style={{display:"flex",gap:8,marginBottom:14}}><input value={nv} onChange={e=>setNv(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Nouvelle variété…" style={{...inp,flex:1}}/><button onClick={add} style={btn({background:C.acc,color:"#fff",borderColor:C.acc})}>+</button></div>
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={onClose} style={btn()}>Annuler</button><button onClick={()=>onSave(list)} style={btn({background:C.acc,color:"#fff",borderColor:C.acc})}>Enregistrer</button></div>
-    </div>
-  </div>;
-}
-
-const SITES_DEFAULT=[
-  {id:1,nom:"mesarbustes.fr",emoji:"🌿",url:"https://www.mesarbustes.fr/recherche?q={q}"},
-  {id:2,nom:"gerbeaud.com",emoji:"🌸",url:"https://www.gerbeaud.com/recherche?q={q}"},
-];
-const SK_SITES="verger-sites-recherche";
-
-// ════════════════════════════════════════════════════════════
-// CONFIGURATION IA
-// Clés API stockées localement (jamais partagées).
-// Chaque utilisateur doit saisir sa propre clé.
-// Modèles supportés : Claude (Anthropic), GPT-4 (OpenAI), Gemini (Google)
-// ════════════════════════════════════════════════════════════
-const IA_KEY="verger-ia-config"; // clé localStorage pour config IA
-const IA_PROVIDERS={
-  claude:{
-    nom:"Claude",emoji:"✨",color:"#c77c3c",
-    url:"https://api.anthropic.com/v1/messages",
-    models:["claude-haiku-4-5-20251001","claude-sonnet-4-6"],
-    modelDefault:"claude-haiku-4-5-20251001",
-    doc:"https://console.anthropic.com/",
-    gratuit:"Gratuit avec crédit offert"
-  },
-  openai:{
-    nom:"GPT-4",emoji:"🤖",color:"#10a37f",
-    url:"https://api.openai.com/v1/chat/completions",
-    models:["gpt-4o-mini","gpt-4o"],
-    modelDefault:"gpt-4o-mini",
-    doc:"https://platform.openai.com/api-keys",
-    gratuit:"Crédit offert au départ"
-  },
-  gemini:{
-    nom:"Gemini",emoji:"💎",color:"#4285f4",
-    url:"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-    models:["gemini-1.5-flash","gemini-1.5-pro"],
-    modelDefault:"gemini-1.5-flash",
-    doc:"https://aistudio.google.com/app/apikey",
-    gratuit:"Plan gratuit disponible"
-  },
-};
-
-
-// ════════════════════════════════════════════════════════════
-// FICHE DÉTAIL D'UN ARBRE (modal principal)
-// Onglets : 🌿 Info/fiche | 📷 Galerie | 📓 Journal | 🍎 Récoltes
-// Nouvelles fonctionnalités :
-//   - Swipe tactile gauche/droite pour passer à l'arbre suivant/précédent
-//   - Flèches ‹ › et indicateur "N / Total" en haut du modal
-//   - allArbres : liste complète pour la navigation
-//   - onSwipe("left"|"right") : callback vers App pour changer l'arbre
-// ════════════════════════════════════════════════════════════
 function FicheDetail({arbre,ficheManuelle,journal,recoltes,varietes,arbres,onMod,onPrint,onClose,onSaveJ,onSaveR,onSaveP,onSaveFiche,C,getCol,allArbres,onSwipe}){
   const [tab,setTab]=useState("info");const [nn,setNn]=useState("");const [nr,setNr]=useState({annee:new Date().getFullYear(),quantite:"",note:""});
   const [editFiche,setEditFiche]=useState(false);
@@ -630,12 +624,7 @@ function FicheDetail({arbre,ficheManuelle,journal,recoltes,varietes,arbres,onMod
   const [sites,setSites]=useState(()=>{try{const r=localStorage.getItem(SK_SITES);return r?JSON.parse(r):SITES_DEFAULT;}catch{return SITES_DEFAULT;}});
   const [editSites,setEditSites]=useState(false);
   const [newSite,setNewSite]=useState({nom:"",emoji:"🔗",url:""});
-  // IA
-  const [iaConfig,setIaConfig]=useState(()=>{try{const r=localStorage.getItem(IA_KEY);return r?JSON.parse(r):{provider:"claude",key:"",model:"claude-haiku-4-5-20251001"};}catch{return {provider:"claude",key:"",model:"claude-haiku-4-5-20251001"};}});
-  const [iaLoad,setIaLoad]=useState(false);
-  const [iaErr,setIaErr]=useState(null);
-  const [showIaConfig,setShowIaConfig]=useState(false);
-  const saveIaConfig=cfg=>{setIaConfig(cfg);try{localStorage.setItem(IA_KEY,JSON.stringify(cfg));}catch{}};
+
   // Swipe gauche/droite pour naviguer entre les arbres (mobile)
   const swipeRef=useRef(null);
   const onSwipeStart=e=>swipeRef.current=e.touches[0].clientX;
@@ -700,46 +689,6 @@ function FicheDetail({arbre,ficheManuelle,journal,recoltes,varietes,arbres,onMod
     setWikiResult(null);
   };
 
-  const genFicheIA=async()=>{
-    if(!iaConfig.key.trim()){setShowIaConfig(true);return;}
-    setIaLoad(true);setIaErr(null);
-    const prompt=`Tu es un expert en arboriculture fruitière. Génère une fiche complète en français pour cet arbre :
-Nom : ${arbre.nom}
-Variété : ${arbre.variete}
-Année plantation : ${arbre.annee}
-${arbre.description?"Notes : "+arbre.description:""}
-
-Réponds UNIQUEMENT avec un objet JSON valide (pas de markdown, pas de backticks) avec exactement ces 6 clés :
-{"Description botanique":"...","Fruit / feuillage":"...","Culture (sol, exposition)":"...","Taille & entretien":"...","Pollinisation":"...","Usages & conservation":"..."}
-Chaque valeur : 2-4 phrases précises et pratiques.`;
-    try{
-      let text="";
-      const p=IA_PROVIDERS[iaConfig.provider];
-      const model=iaConfig.model||p.modelDefault;
-      if(iaConfig.provider==="claude"){
-        const r=await fetch(p.url,{method:"POST",headers:{"Content-Type":"application/json","x-api-key":iaConfig.key,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:1200,messages:[{role:"user",content:prompt}]})});
-        const d=await r.json();
-        if(!r.ok)throw new Error(d.error?.message||"Erreur Claude");
-        text=d.content[0].text;
-      }else if(iaConfig.provider==="openai"){
-        const r=await fetch(p.url,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+iaConfig.key},body:JSON.stringify({model,messages:[{role:"user",content:prompt}],max_tokens:1200})});
-        const d=await r.json();
-        if(!r.ok)throw new Error(d.error?.message||"Erreur OpenAI");
-        text=d.choices[0].message.content;
-      }else if(iaConfig.provider==="gemini"){
-        const url=p.url.replace("{model}",model)+"?key="+iaConfig.key;
-        const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
-        const d=await r.json();
-        if(!r.ok)throw new Error(d.error?.message||"Erreur Gemini");
-        text=d.candidates[0].content.parts[0].text;
-      }
-      const clean=text.replace(/```json|```/g,"").trim();
-      const parsed=JSON.parse(clean);
-      setFdata(d=>({...d,...parsed}));
-    }catch(e){setIaErr(e.message||"Erreur de génération.");}
-    setIaLoad(false);
-  };
-
   const siteUrl=s=>s.url.replace("{q}",encodeURIComponent(wikiQuery));
 
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:10}} onClick={onClose}>
@@ -769,103 +718,7 @@ Chaque valeur : 2-4 phrases précises et pratiques.`;
         {editFiche&&<div style={{marginBottom:10}}>
           <p style={{fontSize:12,fontWeight:700,color:C.acc,margin:"0 0 8px"}}>📝 Éditer la fiche</p>
           {/* Bloc recherche */}
-          <div style={{background:C.light,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",marginBottom:14}}>
-            <p style={{fontSize:11,fontWeight:700,color:C.mut,fontFamily:"sans-serif",margin:"0 0 7px",textTransform:"uppercase",letterSpacing:.5}}>🔍 Recherche & import</p>
-            {/* Champ + bouton Wikipedia */}
-            <div style={{display:"flex",gap:6,marginBottom:6}}>
-              <input value={wikiQuery} onChange={e=>{setWikiQuery(e.target.value);setWikiSuggs([]);setWikiResult(null);}} onKeyDown={e=>e.key==="Enter"&&searchWiki()}
-                placeholder="Nom commun ou latin…" style={{...inp,flex:1}}/>
-              <button onClick={searchWiki} disabled={wikiLoad} style={btn({background:C.acc,color:"#fff",borderColor:C.acc,opacity:wikiLoad?.6:1,minWidth:36})}>
-                {wikiLoad?"⏳":"🔍"}
-              </button>
-            </div>
-            {wikiErr&&<p style={{fontSize:11,color:C.dan,fontFamily:"sans-serif",margin:"0 0 6px"}}>{wikiErr}</p>}
-            {/* Suggestions Wikipedia */}
-            {wikiSuggs.length>0&&<div style={{marginBottom:8}}>
-              <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:"0 0 5px"}}>Plusieurs résultats — choisis :</p>
-              {wikiSuggs.map(t=><button key={t} onClick={()=>loadWikiPage(t)}
-                style={{...btn({background:C.card,fontSize:11,display:"block",width:"100%",textAlign:"left",marginBottom:4,padding:"5px 10px"}),borderLeft:`3px solid ${C.acc}`}}>
-                {t}
-              </button>)}
-            </div>}
-            {/* Résultat Wikipedia */}
-            {wikiResult&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",marginBottom:8}}>
-              <p style={{fontSize:12,fontWeight:700,color:C.txt,margin:"0 0 4px"}}>{wikiResult.titre}</p>
-              <p style={{fontSize:11.5,color:C.txt,lineHeight:1.6,margin:"0 0 8px",maxHeight:100,overflowY:"auto"}}>{wikiResult.extrait}</p>
-              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                <button onClick={importWiki} style={btn({background:C.acc,color:"#fff",borderColor:C.acc,fontSize:11})}>↓ Importer</button>
-                {wikiResult.url&&<a href={wikiResult.url} target="_blank" rel="noreferrer" style={{fontSize:11,color:C.acc,fontFamily:"sans-serif"}}>Wikipedia →</a>}
-                <button onClick={()=>setWikiResult(null)} style={btn({fontSize:11,padding:"3px 7px"})}>✕</button>
-              </div>
-            </div>}
-            {/* Liens externes */}
-            <div style={{borderTop:`1px solid ${C.border}`,paddingTop:8,marginTop:4}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:0,fontWeight:600,textTransform:"uppercase",letterSpacing:.5}}>Rechercher aussi sur</p>
-                <button onClick={()=>setEditSites(e=>!e)} style={btn({fontSize:10,padding:"2px 7px",color:C.mut})}>{editSites?"✕ Fermer":"⚙️ Gérer"}</button>
-              </div>
-              {/* Gestionnaire de sites */}
-              {editSites&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 10px",marginBottom:8}}>
-                {sites.map(s=><div key={s.id} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
-                  <span style={{fontSize:14}}>{s.emoji}</span>
-                  <span style={{fontSize:11,flex:1,color:C.txt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.nom}</span>
-                  <button onClick={()=>delSite(s.id)} style={btn({fontSize:10,padding:"2px 6px",color:C.dan,borderColor:C.dan+"44"})}>✕</button>
-                </div>)}
-                <div style={{borderTop:`1px solid ${C.border}`,paddingTop:7,marginTop:5,display:"flex",flexDirection:"column",gap:5}}>
-                  <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:0}}>Ajouter un site — utilise <code style={{background:C.light,padding:"1px 4px",borderRadius:3}}>{"{q}"}</code> pour le terme recherché dans l'URL</p>
-                  <div style={{display:"flex",gap:5}}>
-                    <input value={newSite.emoji} onChange={e=>setNewSite(s=>({...s,emoji:e.target.value}))} style={{...inp,width:36,textAlign:"center"}} maxLength={2} placeholder="🔗"/>
-                    <input value={newSite.nom} onChange={e=>setNewSite(s=>({...s,nom:e.target.value}))} style={{...inp,flex:1}} placeholder="Nom du site"/>
-                  </div>
-                  <div style={{display:"flex",gap:5}}>
-                    <input value={newSite.url} onChange={e=>setNewSite(s=>({...s,url:e.target.value}))} style={{...inp,flex:1,fontSize:11}} placeholder="https://exemple.com/recherche?q={q}"/>
-                    <button onClick={addSite} style={btn({background:C.acc,color:"#fff",borderColor:C.acc,padding:"4px 9px"})}>+</button>
-                  </div>
-                </div>
-              </div>}
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {sites.map(s=><a key={s.id} href={siteUrl(s)} target="_blank" rel="noreferrer"
-                  style={{fontSize:11,fontFamily:"sans-serif",padding:"4px 10px",borderRadius:7,background:C.card,border:`1px solid ${C.border}`,color:C.acc,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:4}}>
-                  {s.emoji} {s.nom} →
-                </a>)}
-              </div>
-            </div>
-          </div>
-          {/* ── Bloc génération IA ── */}
-          <div style={{background:C.light,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",marginBottom:14}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <p style={{fontSize:11,fontWeight:700,color:C.mut,fontFamily:"sans-serif",margin:0,textTransform:"uppercase",letterSpacing:.5}}>✨ Générer avec l'IA</p>
-              <button onClick={()=>setShowIaConfig(s=>!s)} style={btn({fontSize:10,padding:"2px 8px",color:C.mut})}>{showIaConfig?"✕":"⚙️ Config"}</button>
-            </div>
-            {showIaConfig&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",marginBottom:10}}>
-              <p style={{fontSize:11,color:C.mut,fontFamily:"sans-serif",margin:"0 0 8px"}}>Choisis ton IA et saisis ta clé API :</p>
-              <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>
-                {Object.entries(IA_PROVIDERS).map(([k,p])=><button key={k} onClick={()=>saveIaConfig({...iaConfig,provider:k,model:p.modelDefault})}
-                  style={{...btn({fontSize:11,padding:"4px 10px"}),background:iaConfig.provider===k?p.color+"22":C.card,borderColor:iaConfig.provider===k?p.color:C.border,color:iaConfig.provider===k?p.color:C.txt}}>
-                  {p.emoji} {p.nom}
-                </button>)}
-              </div>
-              {Object.entries(IA_PROVIDERS).map(([k,p])=>iaConfig.provider===k&&<div key={k}>
-                <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:"0 0 4px"}}>{p.gratuit} · <a href={p.doc} target="_blank" rel="noreferrer" style={{color:C.acc}}>Obtenir une clé →</a></p>
-                <div style={{display:"flex",gap:5,marginBottom:6}}>
-                  <input type="password" value={iaConfig.key} onChange={e=>saveIaConfig({...iaConfig,key:e.target.value})} placeholder="Colle ta clé API ici…"
-                    style={{...inp,flex:1,fontFamily:"monospace",fontSize:11}}/>
-                </div>
-                <div style={{display:"flex",gap:5,alignItems:"center"}}>
-                  <span style={{fontSize:10,color:C.mut,fontFamily:"sans-serif"}}>Modèle :</span>
-                  {p.models.map(m=><button key={m} onClick={()=>saveIaConfig({...iaConfig,model:m})}
-                    style={{...btn({fontSize:10,padding:"2px 8px"}),background:iaConfig.model===m?p.color+"22":C.card,borderColor:iaConfig.model===m?p.color:C.border,color:iaConfig.model===m?p.color:C.txt}}>{m.split("-").slice(-2).join("-")}</button>)}
-                </div>
-              </div>)}
-              {iaConfig.key&&<p style={{fontSize:10,color:"#4a7c3f",fontFamily:"sans-serif",margin:"6px 0 0"}}>✓ Clé configurée</p>}
-            </div>}
-            {iaErr&&<p style={{fontSize:11,color:C.dan,fontFamily:"sans-serif",margin:"0 0 8px"}}>{iaErr}</p>}
-            <button onClick={genFicheIA} disabled={iaLoad}
-              style={{...btn({background:iaLoad?"#aaa":IA_PROVIDERS[iaConfig.provider].color,color:"#fff",borderColor:"transparent",width:"100%",justifyContent:"center",padding:"8px"}),opacity:iaLoad?.7:1}}>
-              {iaLoad?"⏳ Génération en cours…":`${IA_PROVIDERS[iaConfig.provider].emoji} Générer la fiche avec ${IA_PROVIDERS[iaConfig.provider].nom}`}
-            </button>
-            <p style={{fontSize:10,color:C.mut,fontFamily:"sans-serif",margin:"6px 0 0",textAlign:"center"}}>Remplira automatiquement les 6 sections ci-dessous</p>
-          </div>
+          
           {SECTIONS.map(s=><div key={s} style={{marginBottom:10}}>
             <label style={{fontSize:11,fontFamily:"sans-serif",color:C.mut,display:"block",marginBottom:3,fontWeight:600}}>{s}</label>
             <textarea value={fdata[s]||""} onChange={e=>setFdata(d=>({...d,[s]:e.target.value}))} rows={3} placeholder={`Renseigner : ${s.toLowerCase()}…`}
@@ -1236,7 +1089,7 @@ function App(){
       <button onClick={closeSplash} style={{fontFamily:"Georgia,serif",fontSize:15,padding:"12px 36px",borderRadius:10,border:"none",background:"#4a7c3f",color:"#fff",cursor:"pointer",letterSpacing:.5,boxShadow:"0 4px 20px #4a7c3f66"}}>
         Entrer dans le verger →
       </button>
-      <p style={{fontFamily:"sans-serif",fontSize:10,color:"#4a5c4a",margin:"24px 0 0"}}>v16 · © {new Date().getFullYear()} Au Chant des Druides · CC BY-NC 4.0</p>
+      <p style={{fontFamily:"sans-serif",fontSize:10,color:"#4a5c4a",margin:"24px 0 0"}}>v23 · © {new Date().getFullYear()} Au Chant des Druides · CC BY-NC 4.0</p>
     </div>
   </div>;
 
