@@ -19,7 +19,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=Satisfy&display=swap" rel="stylesheet"/>
-<style>*{box-sizing:border-box;margin:0;padding:0;}body{background:#2d3a2d;display:flex;align-items:flex-start;justify-content:center;min-height:100vh;padding:12px;font-family:Georgia,serif;}#root{width:100%;max-width:1200px;}@media(orientation:landscape)and(max-width:960px){body{padding:8px;}#root{max-width:100%;}}</style>
+<style>*{box-sizing:border-box;margin:0;padding:0;}body{background:#2d3a2d;display:flex;align-items:flex-start;justify-content:center;min-height:100vh;padding:12px;font-family:Georgia,serif;}#root{width:100%;max-width:1600px;}@media(orientation:landscape)and(max-width:960px){body{padding:8px;}#root{max-width:100%;}}</style>
 </head>
 <body>
 <div id="root"></div>
@@ -1327,7 +1327,7 @@ function App(){
       <button onClick={closeSplash} style={{fontFamily:"Georgia,serif",fontSize:15,padding:"12px 36px",borderRadius:10,border:"none",background:"#4a7c3f",color:"#fff",cursor:"pointer",letterSpacing:.5,boxShadow:"0 4px 20px #4a7c3f66"}}>
         Entrer dans le verger →
       </button>
-      <p style={{fontFamily:"sans-serif",fontSize:10,color:"#4a5c4a",margin:"24px 0 0"}}>v28 · © {new Date().getFullYear()} Au Chant des Druides · CC BY-NC 4.0</p>
+      <p style={{fontFamily:"sans-serif",fontSize:10,color:"#4a5c4a",margin:"24px 0 0"}}>v29 · © {new Date().getFullYear()} Au Chant des Druides · CC BY-NC 4.0</p>
     </div>
   </div>;
 
@@ -1396,7 +1396,7 @@ function App(){
   return <div style={{fontFamily:"Georgia,serif",background:C.bg,color:C.txt,border:`1.5px solid ${C.border}`,borderRadius:14,overflow:"hidden",display:"flex",flexDirection:isMobile?"column":"row",width:"100%",minHeight:"100vh",position:"relative",transition:"background .3s"}}>
 
     {/* ── SIDEBAR GAUCHE — desktop uniquement ── */}
-    {!isMobile&&<div style={{width:72,background:C.tbg,display:"flex",flexDirection:"column",alignItems:"center",padding:"14px 0",gap:4,flexShrink:0,borderRight:"1px solid rgba(255,255,255,.08)"}}>
+    {!isMobile&&<div style={{width:90,background:C.tbg,display:"flex",flexDirection:"column",alignItems:"center",padding:"14px 0",gap:4,flexShrink:0,borderRight:"1px solid rgba(255,255,255,.08)"}}>
       <button onClick={()=>{setSplashOut(false);setSplash(true);}} title="Accueil" style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"4px",borderRadius:8,marginBottom:8}}>
         <span style={{fontSize:24}}>🌳</span>
         <span style={{fontSize:9,color:C.tsub,fontFamily:"sans-serif"}}>{arbres.length} arbre{arbres.length!==1?"s":""}</span>
