@@ -1077,6 +1077,186 @@ function App(){
     a.href=url;a.download="mon-verger-"+new Date().toISOString().slice(0,10)+".csv";
     a.click();URL.revokeObjectURL(url);
   };
+  const livrePDF=()=>{
+    const now=new Date().toLocaleDateString("fr-FR",{year:"numeric",month:"long",day:"numeric"});
+    const yr=new Date().getFullYear();
+    const totalKg=Object.values(recoltes).flat().reduce((s,r)=>{const n=parseFloat((r.quantite+"").replace(",","."));return s+(isNaN(n)?0:n);},0);
+    const byV={};arbres.forEach(a=>{byV[a.variete]=(byV[a.variete]||0)+1;});
+    const ageMoy=arbres.length?Math.round(arbres.reduce((s,a)=>s+(yr-parseInt(a.annee)),0)/arbres.length):0;
+    const esc=s=>(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const col2=a=>getCol(a.variete);
+
+    // ── Page de couverture ──
+    let html='<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><title>Livre du Verger · Au Chant des Druides</title>'
+      +'<style>*{box-sizing:border-box;margin:0;padding:0;}'
+      +'body{font-family:Georgia,serif;background:#fff;color:#2d2010;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+      +'@page{size:A4 portrait;margin:0;}'
+      +'@media print{body{margin:0;}}'
+      +'.page{width:100%;page-break-after:always;page-break-inside:avoid;position:relative;padding:10mm 12mm;}'
+      +'.page:last-child{page-break-after:avoid;}'
+      +'.cover{background:linear-gradient(160deg,#1a2f1a 0%,#2d4a2a 40%,#1a3a1a 100%);color:#e8f0d8;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;height:297mm;box-sizing:border-box;}'
+      +'.cover-title{font-size:38px;font-weight:700;letter-spacing:1px;margin-bottom:8px;text-shadow:0 2px 8px rgba(0,0,0,.4);}'
+      +'.cover-sub{font-size:16px;color:#b8daa0;margin-bottom:6px;letter-spacing:2px;text-transform:uppercase;}'
+      +'.cover-date{font-size:13px;color:#8ab865;margin-top:32px;}'
+      +'.cover-divider{width:60px;height:2px;background:#6aaa55;margin:20px auto;}'
+      +'.cover-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:32px;max-width:340px;}'
+      +'.cs{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:14px 10px;}'
+      +'.cs-v{font-size:26px;font-weight:700;color:#b8daa0;}'
+      +'.cs-l{font-size:11px;color:#8ab865;text-transform:uppercase;letter-spacing:1px;margin-top:3px;}'
+      +'.stats-page{}'
+      +'.section-title{font-size:11px;font-weight:700;color:#4a7c3f;text-transform:uppercase;letter-spacing:2px;border-bottom:2px solid #4a7c3f;padding-bottom:6px;margin-bottom:16px;}'
+      +'.var-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px;}'
+      +'.var-card{border-radius:8px;padding:10px 12px;border-left:4px solid;}'
+      +'.tree-page{}'
+      +'.tree-card{border:1.5px solid;border-radius:12px;padding:16px;margin-bottom:16px;background:#faf6ef;}'
+      +'.tree-header{display:flex;gap:14px;align-items:flex-start;margin-bottom:12px;}'
+      +'.tree-photo{width:88px;height:88px;object-fit:cover;border-radius:8px;flex-shrink:0;border:2px solid;}'
+      +'.tree-emoji{width:88px;height:88px;border-radius:8px;flex-shrink:0;border:2px solid;display:flex;align-items:center;justify-content:center;font-size:42px;}'
+      +'.tree-name{font-size:20px;font-weight:700;margin-bottom:2px;}'
+      +'.tree-sub{font-size:12px;color:#7a7060;margin-bottom:6px;}'
+      +'.badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-family:Arial,sans-serif;font-weight:600;border:1px solid;}'
+      +'.sec{margin-bottom:10px;}'
+      +'.sec-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#7a7060;font-family:Arial,sans-serif;margin-bottom:3px;}'
+      +'.sec-val{font-size:12px;line-height:1.6;white-space:pre-wrap;}'
+      +'.recolt-row{display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid #e8e0d0;font-family:Arial,sans-serif;}'
+      +'.journal-entry{font-size:11px;padding:4px 0;border-bottom:1px solid #e8e0d0;display:flex;gap:8px;}'
+      +'.j-date{color:#7a7060;flex-shrink:0;font-family:Arial,sans-serif;}'
+      +'.footer{display:flex;justify-content:space-between;font-size:9px;color:#aaa;font-family:Arial,sans-serif;border-top:1px solid #e0d8c8;padding-top:5px;margin-top:12px;}'
+      +'@media print{body{background:#fff;}}'
+      +'</style></head><body>';
+
+    // Couverture
+    const totalJournal=Object.values(journal).flat().length;
+    html+='<div class="page cover">';
+    html+='<div style="font-size:52px;margin-bottom:20px;">🌳</div>';
+    html+='<div class="cover-title">Livre du Verger</div>';
+    html+='<div class="cover-sub">Au Chant des Druides</div>';
+    html+='<div class="cover-divider"></div>';
+    html+='<div style="font-size:14px;color:#a8c080;line-height:1.8;">Un verger vivant · Une mémoire enracinée</div>';
+    html+='<div class="cover-stats">';
+    html+='<div class="cs"><div class="cs-v">'+arbres.length+'</div><div class="cs-l">Arbres</div></div>';
+    html+='<div class="cs"><div class="cs-v">'+Object.keys(byV).length+'</div><div class="cs-l">Variétés</div></div>';
+    html+='<div class="cs"><div class="cs-v">'+totalKg.toFixed(1)+'</div><div class="cs-l">kg récoltés</div></div>';
+    html+='<div class="cs"><div class="cs-v">'+ageMoy+'</div><div class="cs-l">Ans moy.</div></div>';
+    html+='</div>';
+    html+='<div class="cover-date">Édité le '+now+'</div>';
+    html+='</div>';
+
+    // Page statistiques
+    html+='<div class="page stats-page">';
+    html+='<div class="section-title">🌿 Tableau de bord du verger</div>';
+    // Par variété
+    html+='<div class="var-grid">';
+    Object.entries(byV).sort((a,b)=>b[1]-a[1]).forEach(([v,n])=>{
+      const c=getCol(v);const totR=arbres.filter(a=>a.variete===v).reduce((s,a)=>{return s+(recoltes[a.id]||[]).reduce((s2,r)=>{const n2=parseFloat((r.quantite+"").replace(",","."));return s2+(isNaN(n2)?0:n2);},0);},0);
+      html+='<div class="var-card" style="border-color:'+c+';background:'+c+'11;">'
+        +'<div style="font-size:18px;">'+gvi(v)+'</div>'
+        +'<div style="font-size:13px;font-weight:700;color:'+c+';">'+esc(v)+'</div>'
+        +'<div style="font-size:11px;color:#7a7060;font-family:Arial,sans-serif;">'+n+' arbre'+(n>1?"s":"")+(totR>0?" · "+totR.toFixed(1)+" kg":"")+'</div>'
+        +'</div>';
+    });
+    html+='</div>';
+    // Santé globale
+    const sanCount={Bon:0,"À surveiller":0,Malade:0};
+    arbres.forEach(a=>sanCount[a.sante||"Bon"]++);
+    html+='<div class="section-title" style="margin-top:8px;">❤️ Santé globale</div>';
+    html+='<div style="display:flex;gap:16px;margin-bottom:20px;">';
+    [["Bon","#4a7c3f","🟢"],["À surveiller","#8a6d1e","🟡"],["Malade","#b84040","🔴"]].forEach(([k,c,i])=>{
+      html+='<div style="background:'+c+'15;border:1px solid '+c+'44;border-radius:8px;padding:10px 16px;text-align:center;">'
+        +'<div style="font-size:20px;">'+i+'</div>'
+        +'<div style="font-size:18px;font-weight:700;color:'+c+';">'+sanCount[k]+'</div>'
+        +'<div style="font-size:10px;color:#7a7060;font-family:Arial,sans-serif;">'+k+'</div>'
+        +'</div>';
+    });
+    html+='</div>';
+    // Meilleures récoltes
+    const topRecoltes=[...arbres].map(a=>({a,total:(recoltes[a.id]||[]).reduce((s,r)=>{const n=parseFloat((r.quantite+"").replace(",","."));return s+(isNaN(n)?0:n);},0)})).filter(x=>x.total>0).sort((a,b)=>b.total-a.total).slice(0,5);
+    if(topRecoltes.length>0){
+      html+='<div class="section-title" style="margin-top:8px;">🏆 Meilleures récoltes cumulées</div>';
+      topRecoltes.forEach((x,i)=>{
+        const pct=Math.round((x.total/topRecoltes[0].total)*100);
+        html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">'
+          +'<div style="font-size:13px;width:24px;color:#7a7060;font-family:Arial,sans-serif;">'+(i+1)+'.</div>'
+          +'<div style="font-size:13px;font-weight:600;width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+gvi(x.a.variete)+' '+esc(x.a.nom)+'</div>'
+          +'<div style="flex:1;background:#e8e0d0;border-radius:4px;height:10px;">'
+            +'<div style="width:'+pct+'%;background:'+col2(x.a)+';border-radius:4px;height:10px;"></div>'
+          +'</div>'
+          +'<div style="font-size:12px;color:'+col2(x.a)+';font-weight:600;width:60px;text-align:right;font-family:Arial,sans-serif;">'+x.total.toFixed(1)+' kg</div>'
+          +'</div>';
+      });
+    }
+    html+='<div class="footer"><span>Mon Verger · Au Chant des Druides</span><span>'+now+'</span></div>';
+    html+='</div>';
+
+    // Pages arbres (2 par page)
+    const sorted=[...arbres].sort((a,b)=>a.variete.localeCompare(b.variete,"fr")||a.nom.localeCompare(b.nom,"fr"));
+    for(let i=0;i<sorted.length;i+=2){
+      const pair=sorted.slice(i,i+2);
+      html+='<div class="page tree-page">';
+      html+='<div class="section-title">🌳 Fiches des arbres — '+(i+1)+(pair.length>1?" & "+(i+2):"")+" / "+sorted.length+'</div>';
+      pair.forEach(a=>{
+        const c=col2(a);const san=SAN[a.sante||"Bon"];const age=yr-parseInt(a.annee);
+        const fiche2=fiches[a.id]||{};const recs=recoltes[a.id]||[];const jrnl=journal[a.id]||[];
+        const SECS=["Description botanique","Fruit / feuillage","Culture (sol, exposition)","Taille & entretien","Pollinisation","Usages & conservation"];
+        const ficheSecsHtml=SECS.filter(s=>fiche2[s]&&fiche2[s].trim()).map(s=>
+          '<div class="sec"><div class="sec-label">'+esc(s)+'</div><div class="sec-val">'+esc(fiche2[s])+'</div></div>'
+        ).join("");
+
+        html+='<div class="tree-card" style="border-color:'+c+';">';
+        // En-tête
+        html+='<div class="tree-header">';
+        if(a.photo) html+='<img src="'+a.photo+'" class="tree-photo" style="border-color:'+c+';" alt=""/>';
+        else html+='<div class="tree-emoji" style="border-color:'+c+';background:'+c+'15;">'+gvi(a.variete)+'</div>';
+        html+='<div style="flex:1;min-width:0;">';
+        html+='<div class="tree-name" style="color:'+c+';">'+gvi(a.variete)+' '+esc(a.nom)+'</div>';
+        html+='<div class="tree-sub">#'+String(a.numero||"—").padStart(3,"0")+' · Planté en '+a.annee+' · '+age+' an'+(age>1?"s":"")+'</div>';
+        html+='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'
+          +'<span class="badge" style="background:'+c+'22;color:'+c+';border-color:'+c+'55;">'+esc(a.variete)+'</span>'
+          +'<span style="font-size:12px;">'+san.i+' '+(a.sante||"Bon")+'</span>'
+          +(a.origine?'<span style="font-size:11px;color:#7a7060;font-family:Arial,sans-serif;">'+esc(a.origine)+'</span>':'')
+          +'</div>';
+        html+='</div></div>';
+
+        // Contenu en 2 colonnes
+        html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">';
+
+        // Colonne gauche : fiche botanique
+        html+='<div>';
+        if(ficheSecsHtml) html+=ficheSecsHtml;
+        else if(a.description) html+='<div class="sec"><div class="sec-label">Notes</div><div class="sec-val">'+esc(a.description)+'</div></div>';
+        else html+='<div style="font-size:11px;color:#bbb;font-style:italic;">Aucune fiche renseignée.</div>';
+        html+='</div>';
+
+        // Colonne droite : récoltes + journal
+        html+='<div>';
+        if(recs.length>0){
+          html+='<div class="sec-label">🍎 Récoltes</div>';
+          const totalA={};recs.forEach(r=>{const n=parseFloat((r.quantite+"").replace(",","."));totalA[r.annee]=(totalA[r.annee]||0)+(isNaN(n)?0:n);});
+          Object.entries(totalA).sort((a,b)=>b[0]-a[0]).slice(0,5).forEach(([yr2,kg])=>{
+            html+='<div class="recolt-row"><span>'+yr2+'</span><span style="font-weight:600;color:'+c+';">'+kg.toFixed(1)+' kg</span></div>';
+          });
+          const tot=recs.reduce((s,r)=>{const n=parseFloat((r.quantite+"").replace(",","."));return s+(isNaN(n)?0:n);},0);
+          html+='<div style="font-size:10px;color:#7a7060;font-family:Arial,sans-serif;margin-top:3px;text-align:right;">Total : '+tot.toFixed(1)+' kg</div>';
+        }
+        if(jrnl.length>0){
+          html+='<div class="sec-label" style="margin-top:8px;">📓 Journal (dernières entrées)</div>';
+          [...jrnl].reverse().slice(0,4).forEach(j=>{
+            html+='<div class="journal-entry"><span class="j-date">'+esc(j.date||"")+'</span><span>'+esc(j.note||"")+'</span></div>';
+          });
+          if(jrnl.length>4) html+='<div style="font-size:10px;color:#aaa;font-style:italic;margin-top:2px;">+'+(jrnl.length-4)+' entrée(s) supplémentaire(s)</div>';
+        }
+        if(recs.length===0&&jrnl.length===0) html+='<div style="font-size:11px;color:#bbb;font-style:italic;">Aucune donnée.</div>';
+        html+='</div>';
+        html+='</div>'; // grid
+        html+='</div>'; // tree-card
+      });
+      html+='<div class="footer"><span>Mon Verger · Au Chant des Druides</span><span>Édité le '+now+'</span></div>';
+      html+='</div>';
+    }
+
+    html+='<script>window.onload=function(){window.print();}<\/script></body></html>';
+    const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}
+  };
   const impData=async e=>{const f=e.target.files[0];if(!f)return;try{const t=await f.text();const d=JSON.parse(t);if(d.arbres)sA(d.arbres);if(d.varietes)sV(d.varietes);if(d.fiches)sF(d.fiches);if(d.journal)sJ(d.journal);if(d.recoltes)sR(d.recoltes);if(d.marqueurs)sM(d.marqueurs);if(d.couleurs)sC(d.couleurs);setModal(null);}catch{alert("Fichier invalide.");}};
 
   const filtVars=["Toutes",...varietes];
@@ -1125,7 +1305,7 @@ function App(){
       <button onClick={closeSplash} style={{fontFamily:"Georgia,serif",fontSize:15,padding:"12px 36px",borderRadius:10,border:"none",background:"#4a7c3f",color:"#fff",cursor:"pointer",letterSpacing:.5,boxShadow:"0 4px 20px #4a7c3f66"}}>
         Entrer dans le verger →
       </button>
-      <p style={{fontFamily:"sans-serif",fontSize:10,color:"#4a5c4a",margin:"24px 0 0"}}>v24 · © {new Date().getFullYear()} Au Chant des Druides · CC BY-NC 4.0</p>
+      <p style={{fontFamily:"sans-serif",fontSize:10,color:"#4a5c4a",margin:"24px 0 0"}}>v26 · © {new Date().getFullYear()} Au Chant des Druides · CC BY-NC 4.0</p>
     </div>
   </div>;
 
@@ -1316,7 +1496,7 @@ function App(){
     {/* ── Modaux ── */}
     {modal==="theme"&&<ThemeModal theme={theme} onSave={name=>{sT(name);setModal(null);}} onClose={()=>setModal(null)} C={C}/>}
     {modal==="couleurs"&&<CouleurModal varietes={varietes} couleurs={couleurs} vIndex={v=>varietes.indexOf(v)} onSave={co=>{sC(co);setModal(null);}} onClose={()=>setModal(null)} C={C}/>}
-    {modal==="io"&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:10}}><div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:18,width:320,maxWidth:"100%"}}><p style={{fontSize:16,fontWeight:700,margin:"0 0 10px",color:C.txt}}>💾 Sauvegarde</p><div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}><button onClick={expData} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"8px",borderRadius:8,border:`1px solid ${C.acc}`,background:C.acc,color:"#fff",cursor:"pointer",textAlign:"center"}}>⬇️ Exporter (.json)</button><button onClick={expCSV} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"8px",borderRadius:8,border:`1px solid #5a8a5a`,background:"#5a8a5a",color:"#fff",cursor:"pointer",textAlign:"center"}}>📊 Exporter (.csv)</button><div><p style={{fontSize:12,color:C.mut,margin:"0 0 5px",fontFamily:"sans-serif"}}>⬆️ Importer</p><input type="file" accept=".json" onChange={impData} style={{display:"block",width:"100%",fontSize:14,padding:"8px 4px",color:C.txt,background:C.card,border:`1px solid ${C.border}`,borderRadius:8}}/></div></div><div style={{display:"flex",justifyContent:"flex-end"}}><button onClick={()=>setModal(null)} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer"}}>Fermer</button></div></div></div>}
+    {modal==="io"&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:10}}><div style={{background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:12,padding:18,width:320,maxWidth:"100%"}}><p style={{fontSize:16,fontWeight:700,margin:"0 0 10px",color:C.txt}}>💾 Sauvegarde</p><div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}><button onClick={expData} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"8px",borderRadius:8,border:`1px solid ${C.acc}`,background:C.acc,color:"#fff",cursor:"pointer",textAlign:"center"}}>⬇️ Exporter (.json)</button><button onClick={expCSV} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"8px",borderRadius:8,border:`1px solid #5a8a5a`,background:"#5a8a5a",color:"#fff",cursor:"pointer",textAlign:"center"}}>📊 Exporter (.csv)</button><button onClick={livrePDF} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"8px",borderRadius:8,border:"1px solid #8a6d1e",background:"#8a6d1e",color:"#fff",cursor:"pointer",textAlign:"center"}}>📖 Livre du Verger (PDF)</button><div><p style={{fontSize:12,color:C.mut,margin:"0 0 5px",fontFamily:"sans-serif"}}>⬆️ Importer</p><input type="file" accept=".json" onChange={impData} style={{display:"block",width:"100%",fontSize:14,padding:"8px 4px",color:C.txt,background:C.card,border:`1px solid ${C.border}`,borderRadius:8}}/></div></div><div style={{display:"flex",justifyContent:"flex-end"}}><button onClick={()=>setModal(null)} style={{fontFamily:"Georgia,serif",fontSize:13,padding:"6px 13px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.txt,cursor:"pointer"}}>Fermer</button></div></div></div>}
     {modal==="arbre"&&<TreeForm initial={editTarget} varietes={varietes} arbres={arbres} onSave={editTarget?updA:addA} onClose={()=>{setModal(null);setEditTarget(null);}} C={C}/>}
     {modal==="var"&&<VarForm varietes={varietes} onSave={l=>{sV(l);setModal(null);if(!l.includes(filtreV))setFiltreV("Toutes");}} onClose={()=>setModal(null)} C={C}/>}
     {modal==="etiq"&&<Etiquettes arbres={arbres} varietes={varietes} onClose={()=>setModal(null)} getCol={getCol} C={C}/>}
