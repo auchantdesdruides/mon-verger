@@ -2,7 +2,7 @@
 // Permet le fonctionnement hors-ligne complet (l'appli + ses données locales)
 // + Vérification automatique des mises à jour à chaque ouverture
 
-const CACHE_NAME = "mon-verger-v26"; // ⚠️ Incrémenter ce numéro à chaque nouvelle version pour forcer la mise à jour
+const CACHE_NAME = "mon-verger-v27"; // ⚠️ Incrémenter ce numéro à chaque nouvelle version pour forcer la mise à jour
 const ASSETS = [
   "./",
   "./index.html",

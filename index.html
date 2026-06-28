@@ -381,7 +381,7 @@ function FicheVerger({arbres,varietes,recoltes,onClose,getCol,C}){
       +"<table><thead><tr style='background:#f0ede6;'>"+["N°","Nom","Variété","Année","Âge","Santé"].map(h=>"<th style='padding:6px 8px;font-size:10px;text-transform:uppercase;color:#888;font-weight:600;border-bottom:1px solid #e0d8c8;'>"+h+"</th>").join("")+"</tr></thead><tbody>"+rows+"</tbody></table>"
       +"<div style='margin-top:20px;padding-top:8px;border-top:1px solid #e0d8c8;display:flex;justify-content:space-between;font-size:10px;color:#aaa;'><span>Mon Verger · Récapitulatif</span><span>"+now+"</span></div>"
       +"<script>window.onload=function(){window.print();window.close();}<\/script></body></html>";
-    const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}
+    const blob=new Blob([html],{type:'text/html'});const burl=URL.createObjectURL(blob);window.open(burl,'_blank');setTimeout(()=>URL.revokeObjectURL(burl),10000);
   };
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",zIndex:1000,padding:"14px 6px"}}>
     <div style={{width:"100%",maxWidth:680}}>
@@ -1255,7 +1255,7 @@ function App(){
     }
 
     html+='<script>window.onload=function(){window.print();}<\/script></body></html>';
-    const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}
+    const blob=new Blob([html],{type:'text/html'});const burl=URL.createObjectURL(blob);window.open(burl,'_blank');setTimeout(()=>URL.revokeObjectURL(burl),10000);
   };
   const impData=async e=>{const f=e.target.files[0];if(!f)return;try{const t=await f.text();const d=JSON.parse(t);if(d.arbres)sA(d.arbres);if(d.varietes)sV(d.varietes);if(d.fiches)sF(d.fiches);if(d.journal)sJ(d.journal);if(d.recoltes)sR(d.recoltes);if(d.marqueurs)sM(d.marqueurs);if(d.couleurs)sC(d.couleurs);setModal(null);}catch{alert("Fichier invalide.");}};
 
@@ -1305,7 +1305,7 @@ function App(){
       <button onClick={closeSplash} style={{fontFamily:"Georgia,serif",fontSize:15,padding:"12px 36px",borderRadius:10,border:"none",background:"#4a7c3f",color:"#fff",cursor:"pointer",letterSpacing:.5,boxShadow:"0 4px 20px #4a7c3f66"}}>
         Entrer dans le verger →
       </button>
-      <p style={{fontFamily:"sans-serif",fontSize:10,color:"#4a5c4a",margin:"24px 0 0"}}>v26 · © {new Date().getFullYear()} Au Chant des Druides · CC BY-NC 4.0</p>
+      <p style={{fontFamily:"sans-serif",fontSize:10,color:"#4a5c4a",margin:"24px 0 0"}}>v27 · © {new Date().getFullYear()} Au Chant des Druides · CC BY-NC 4.0</p>
     </div>
   </div>;
 
@@ -1346,7 +1346,7 @@ function App(){
         +"<span>Mon Verger · Au Chant des Druides</span><span>"+new Date().toLocaleDateString("fr-FR")+"</span>"
       +"</div></div>"
       +"<script>window.onload=function(){setTimeout(function(){window.print();},400);}<\/script></body></html>";
-    const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();}
+    const blob=new Blob([html],{type:'text/html'});const burl=URL.createObjectURL(blob);window.open(burl,'_blank');setTimeout(()=>URL.revokeObjectURL(burl),10000);
   };
 
   const VUES_NAV=[
